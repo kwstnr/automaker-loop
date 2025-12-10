@@ -101,6 +101,9 @@ export interface AppState {
   currentView: ViewMode;
   sidebarOpen: boolean;
 
+  // Agent Session state (per-project, keyed by project path)
+  lastSelectedSessionByProject: Record<string, string>; // projectPath -> sessionId
+
   // Theme
   theme: ThemeMode;
 
@@ -223,6 +226,10 @@ export interface AppActions {
   // Feature Default Settings actions
   setDefaultSkipTests: (skip: boolean) => void;
 
+  // Agent Session actions
+  setLastSelectedSession: (projectPath: string, sessionId: string | null) => void;
+  getLastSelectedSession: (projectPath: string) => string | null;
+
   // Reset
   reset: () => void;
 }
@@ -235,6 +242,7 @@ const initialState: AppState = {
   projectHistoryIndex: -1,
   currentView: "welcome",
   sidebarOpen: true,
+  lastSelectedSessionByProject: {},
   theme: "dark",
   features: [],
   appSpec: "",
@@ -682,6 +690,27 @@ export const useAppStore = create<AppState & AppActions>()(
       // Feature Default Settings actions
       setDefaultSkipTests: (skip) => set({ defaultSkipTests: skip }),
 
+      // Agent Session actions
+      setLastSelectedSession: (projectPath, sessionId) => {
+        const current = get().lastSelectedSessionByProject;
+        if (sessionId === null) {
+          // Remove the entry for this project
+          const { [projectPath]: _, ...rest } = current;
+          set({ lastSelectedSessionByProject: rest });
+        } else {
+          set({
+            lastSelectedSessionByProject: {
+              ...current,
+              [projectPath]: sessionId,
+            },
+          });
+        }
+      },
+
+      getLastSelectedSession: (projectPath) => {
+        return get().lastSelectedSessionByProject[projectPath] || null;
+      },
+
       // Reset
       reset: () => set(initialState),
     }),
@@ -702,6 +731,7 @@ export const useAppStore = create<AppState & AppActions>()(
         maxConcurrency: state.maxConcurrency,
         kanbanCardDetailLevel: state.kanbanCardDetailLevel,
         defaultSkipTests: state.defaultSkipTests,
+        lastSelectedSessionByProject: state.lastSelectedSessionByProject,
       }),
     }
   )

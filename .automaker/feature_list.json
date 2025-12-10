@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "feature-1765376066671-lmchhkgez",
+    "category": "Agent Runner",
+    "description": "On the Agent Runner, the markdown is not being formatted properly. Can you please bring in a React library to format markdown so that on a session window of the agent, it'll properly format the markdown?",
+    "steps": [],
+    "status": "waiting_approval",
+    "startedAt": "2025-12-10T14:15:24.929Z",
+    "imagePaths": [],
+    "skipTests": true,
+    "summary": "Added markdown formatting to Agent Runner session messages. Modified: agent-view.tsx. Used existing Markdown component with react-markdown library to properly render headings, code blocks, lists, links, and other markdown elements in assistant messages."
+  },
+  {
+    "id": "feature-1765376191866-n4r0s1l6q",
+    "category": "Agent Runner",
+    "description": "On the Agent Runner page, change the hotkey for making a session from W to New. I want all new feature buttons to be the hotkey New.",
+    "steps": [],
+    "status": "waiting_approval",
+    "startedAt": "2025-12-10T14:16:34.207Z",
+    "imagePaths": [],
+    "skipTests": true,
+    "summary": "Changed the new session hotkey from \"W\" to \"N\" on the Agent Runner page. Modified: use-keyboard-shortcuts.ts (line 125). This aligns with the user's request to have all \"new\" feature buttons use the \"N\" hotkey consistently."
+  }
+]

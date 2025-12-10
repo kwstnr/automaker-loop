@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useElectronAgent } from "@/hooks/use-electron-agent";
 import { SessionManager } from "@/components/session-manager";
+import { Markdown } from "@/components/ui/markdown";
 import type { ImageAttachment } from "@/store/app-store";
 import {
   useKeyboardShortcuts,
@@ -30,7 +31,7 @@ import {
 } from "@/hooks/use-keyboard-shortcuts";
 
 export function AgentView() {
-  const { currentProject } = useAppStore();
+  const { currentProject, setLastSelectedSession, getLastSelectedSession } = useAppStore();
   const [input, setInput] = useState("");
   const [selectedImages, setSelectedImages] = useState<ImageAttachment[]>([]);
   const [showImageDropZone, setShowImageDropZone] = useState(false);
@@ -38,6 +39,9 @@ export function AgentView() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [showSessionManager, setShowSessionManager] = useState(true);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Track if initial session has been loaded
+  const initialSessionLoadedRef = useRef(false);
 
   // Scroll management for auto-scroll
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +69,40 @@ export function AgentView() {
       setTimeout(() => setCurrentTool(null), 2000);
     },
   });
+
+  // Handle session selection with persistence
+  const handleSelectSession = useCallback((sessionId: string | null) => {
+    setCurrentSessionId(sessionId);
+    // Persist the selection for this project
+    if (currentProject?.path) {
+      setLastSelectedSession(currentProject.path, sessionId);
+    }
+  }, [currentProject?.path, setLastSelectedSession]);
+
+  // Restore last selected session when switching to Agent view or when project changes
+  useEffect(() => {
+    if (!currentProject?.path) {
+      // No project, reset
+      setCurrentSessionId(null);
+      initialSessionLoadedRef.current = false;
+      return;
+    }
+
+    // Only restore once per project
+    if (initialSessionLoadedRef.current) return;
+    initialSessionLoadedRef.current = true;
+
+    const lastSessionId = getLastSelectedSession(currentProject.path);
+    if (lastSessionId) {
+      console.log("[AgentView] Restoring last selected session:", lastSessionId);
+      setCurrentSessionId(lastSessionId);
+    }
+  }, [currentProject?.path, getLastSelectedSession]);
+
+  // Reset initialSessionLoadedRef when project changes
+  useEffect(() => {
+    initialSessionLoadedRef.current = false;
+  }, [currentProject?.path]);
 
   const handleSend = useCallback(async () => {
     if ((!input.trim() && selectedImages.length === 0) || isProcessing) return;
@@ -441,7 +479,7 @@ export function AgentView() {
         <div className="w-80 border-r flex-shrink-0">
           <SessionManager
             currentSessionId={currentSessionId}
-            onSelectSession={setCurrentSessionId}
+            onSelectSession={handleSelectSession}
             projectPath={currentProject.path}
             isCurrentSessionThinking={isProcessing}
             onQuickCreateRef={quickCreateSessionRef}
@@ -559,9 +597,13 @@ export function AgentView() {
                   )}
                 >
                   <CardContent className="p-3">
-                    <p className="text-sm whitespace-pre-wrap">
-                      {message.content}
-                    </p>
+                    {message.role === "assistant" ? (
+                      <Markdown className="text-sm">{message.content}</Markdown>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">
+                        {message.content}
+                      </p>
+                    )}
                     <p
                       className={cn(
                         "text-xs mt-2",

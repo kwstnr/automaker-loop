@@ -27,7 +27,7 @@ class ProjectAnalyzer {
         systemPrompt: promptBuilder.getProjectAnalysisSystemPrompt(),
         maxTurns: 50,
         cwd: projectPath,
-        allowedTools: ["Read", "Glob", "Grep", "Bash"],
+        allowedTools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
         permissionMode: "acceptEdits",
         sandbox: {
           enabled: true,

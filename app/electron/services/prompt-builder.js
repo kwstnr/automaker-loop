@@ -359,6 +359,7 @@ Analyze this project's codebase and update the .automaker/app_spec.txt file with
 3. **Technology Stack** - Languages, frameworks, libraries detected
 4. **Core Capabilities** - Main features and functionality
 5. **Implemented Features** - What features are already built
+6. **Implementation Roadmap** - Break down remaining work into phases with individual features
 
 **Steps to Follow:**
 
@@ -406,10 +407,42 @@ Analyze this project's codebase and update the .automaker/app_spec.txt file with
      <implemented_features>
        <!-- List specific features that appear to be implemented -->
      </implemented_features>
+
+     <implementation_roadmap>
+       <phase_1_foundation>
+         <!-- List foundational features to build first -->
+       </phase_1_foundation>
+       <phase_2_core_logic>
+         <!-- List core logic features -->
+       </phase_2_core_logic>
+       <phase_3_polish>
+         <!-- List polish and enhancement features -->
+       </phase_3_polish>
+     </implementation_roadmap>
    </project_specification>
    \`\`\`
 
-4. Ensure .automaker/feature_list.json exists (create as empty array [] if not)
+4. **IMPORTANT - Generate Feature List:**
+   After writing the app_spec.txt, you MUST update .automaker/feature_list.json with features from the implementation_roadmap section:
+   - Read the app_spec.txt you just created
+   - For EVERY feature in each phase of the implementation_roadmap, create an entry
+   - Write ALL features to .automaker/feature_list.json
+
+   The feature_list.json format should be:
+   \`\`\`json
+   [
+     {
+       "id": "feature-<timestamp>-<index>",
+       "category": "<phase name, e.g., 'Phase 1: Foundation'>",
+       "description": "<feature description>",
+       "status": "backlog",
+       "steps": ["Step 1", "Step 2", "..."],
+       "skipTests": true
+     }
+   ]
+   \`\`\`
+
+   Generate unique IDs using the current timestamp and index (e.g., "feature-1234567890-0", "feature-1234567890-1", etc.)
 
 5. Ensure .automaker/context/ directory exists
 
@@ -420,6 +453,7 @@ Analyze this project's codebase and update the .automaker/app_spec.txt file with
 - Only include information you can verify from the codebase
 - If unsure about something, note it as "to be determined"
 - Don't make up features that don't exist
+- Include EVERY feature from the roadmap in feature_list.json - do not skip any
 
 Begin by exploring the project structure.`;
   }
@@ -618,6 +652,7 @@ Your goal is to:
 - Identify programming languages, frameworks, and libraries
 - Detect existing features and capabilities
 - Update the .automaker/app_spec.txt with accurate information
+- Generate a feature list in .automaker/feature_list.json based on the implementation roadmap
 - Ensure all required .automaker files and directories exist
 
 Be efficient - don't read every file, focus on:
@@ -626,7 +661,13 @@ Be efficient - don't read every file, focus on:
 - Directory structure
 - README and documentation
 
-You have read access to files and can run basic bash commands to explore the structure.`;
+**CRITICAL - Feature List Generation:**
+After creating/updating the app_spec.txt, you MUST also update .automaker/feature_list.json:
+1. Read the app_spec.txt you just wrote
+2. Extract all features from the implementation_roadmap section
+3. Write them to .automaker/feature_list.json in the correct format
+
+You have access to Read, Write, Edit, Glob, Grep, and Bash tools. Use them to explore the structure and write the necessary files.`;
   }
 }
 

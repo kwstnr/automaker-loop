@@ -67,6 +67,29 @@ export function SessionManager({
   const [editingName, setEditingName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newSessionName, setNewSessionName] = useState("");
+  const [runningSessions, setRunningSessions] = useState<Set<string>>(new Set());
+
+  // Check running state for all sessions
+  const checkRunningSessions = async (sessionList: SessionListItem[]) => {
+    if (!window.electronAPI?.agent) return;
+
+    const runningIds = new Set<string>();
+
+    // Check each session's running state
+    for (const session of sessionList) {
+      try {
+        const result = await window.electronAPI.agent.getHistory(session.id);
+        if (result.success && result.isRunning) {
+          runningIds.add(session.id);
+        }
+      } catch (err) {
+        // Ignore errors for individual session checks
+        console.warn(`[SessionManager] Failed to check running state for ${session.id}:`, err);
+      }
+    }
+
+    setRunningSessions(runningIds);
+  };
 
   // Load sessions
   const loadSessions = async () => {
@@ -76,12 +99,28 @@ export function SessionManager({
     const result = await window.electronAPI.sessions.list(true);
     if (result.success && result.sessions) {
       setSessions(result.sessions);
+      // Check running state for all sessions
+      await checkRunningSessions(result.sessions);
     }
   };
 
   useEffect(() => {
     loadSessions();
   }, []);
+
+  // Periodically check running state for sessions (useful for detecting when agents finish)
+  useEffect(() => {
+    // Only poll if there are running sessions
+    if (runningSessions.size === 0 && !isCurrentSessionThinking) return;
+
+    const interval = setInterval(async () => {
+      if (sessions.length > 0) {
+        await checkRunningSessions(sessions);
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [sessions, runningSessions.size, isCurrentSessionThinking]);
 
   // Create new session with random name
   const handleCreateSession = async () => {
@@ -328,13 +367,14 @@ export function SessionManager({
                 ) : (
                   <>
                     <div className="flex items-center gap-2 mb-1">
-                      {currentSessionId === session.id && isCurrentSessionThinking ? (
+                      {/* Show loading indicator if this session is running (either current session thinking or any session in runningSessions) */}
+                      {((currentSessionId === session.id && isCurrentSessionThinking) || runningSessions.has(session.id)) ? (
                         <Loader2 className="w-4 h-4 text-primary animate-spin shrink-0" />
                       ) : (
                         <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
                       )}
                       <h3 className="font-medium truncate">{session.name}</h3>
-                      {currentSessionId === session.id && isCurrentSessionThinking && (
+                      {((currentSessionId === session.id && isCurrentSessionThinking) || runningSessions.has(session.id)) && (
                         <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                           thinking...
                         </span>

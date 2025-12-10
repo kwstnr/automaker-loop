@@ -137,8 +137,7 @@ export function useElectronAgent({
     let mounted = true;
 
     const initialize = async () => {
-      // Reset state when switching sessions
-      setIsProcessing(false);
+      // Reset error state when switching sessions
       setError(null);
 
       try {
@@ -154,13 +153,23 @@ export function useElectronAgent({
           console.log("[useElectronAgent] Loaded", result.messages.length, "messages");
           setMessages(result.messages);
           setIsConnected(true);
+
+          // Check if the agent is currently running for this session
+          const historyResult = await window.electronAPI.agent.getHistory(sessionId);
+          if (mounted && historyResult.success) {
+            const isRunning = historyResult.isRunning || false;
+            console.log("[useElectronAgent] Session running state:", isRunning);
+            setIsProcessing(isRunning);
+          }
         } else {
           setError(result.error || "Failed to start session");
+          setIsProcessing(false);
         }
       } catch (err) {
         if (!mounted) return;
         console.error("[useElectronAgent] Failed to initialize:", err);
         setError(err instanceof Error ? err.message : "Failed to initialize");
+        setIsProcessing(false);
       }
     };
 

@@ -127,6 +127,10 @@ export function BoardView() {
   >([]);
   const [showSuggestionsDialog, setShowSuggestionsDialog] = useState(false);
   const [suggestionsCount, setSuggestionsCount] = useState(0);
+  const [featureSuggestions, setFeatureSuggestions] = useState<
+    import("@/lib/electron").FeatureSuggestion[]
+  >([]);
+  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
 
   // Make current project available globally for modal
   useEffect(() => {
@@ -138,7 +142,7 @@ export function BoardView() {
     };
   }, [currentProject]);
 
-  // Listen for suggestions events to update count
+  // Listen for suggestions events to update count (persists even when dialog is closed)
   useEffect(() => {
     const api = getElectronAPI();
     if (!api?.suggestions) return;
@@ -146,6 +150,10 @@ export function BoardView() {
     const unsubscribe = api.suggestions.onEvent((event) => {
       if (event.type === "suggestions_complete" && event.suggestions) {
         setSuggestionsCount(event.suggestions.length);
+        setFeatureSuggestions(event.suggestions);
+        setIsGeneratingSuggestions(false);
+      } else if (event.type === "suggestions_error") {
+        setIsGeneratingSuggestions(false);
       }
     });
 
@@ -1809,9 +1817,15 @@ export function BoardView() {
         open={showSuggestionsDialog}
         onClose={() => {
           setShowSuggestionsDialog(false);
-          // Clear the count when dialog is closed (suggestions were either imported or dismissed)
         }}
         projectPath={currentProject.path}
+        suggestions={featureSuggestions}
+        setSuggestions={(suggestions) => {
+          setFeatureSuggestions(suggestions);
+          setSuggestionsCount(suggestions.length);
+        }}
+        isGenerating={isGeneratingSuggestions}
+        setIsGenerating={setIsGeneratingSuggestions}
       />
     </div>
   );

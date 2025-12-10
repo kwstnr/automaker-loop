@@ -28,16 +28,23 @@ interface FeatureSuggestionsDialogProps {
   open: boolean;
   onClose: () => void;
   projectPath: string;
+  // Props to persist state across dialog open/close
+  suggestions: FeatureSuggestion[];
+  setSuggestions: (suggestions: FeatureSuggestion[]) => void;
+  isGenerating: boolean;
+  setIsGenerating: (generating: boolean) => void;
 }
 
 export function FeatureSuggestionsDialog({
   open,
   onClose,
   projectPath,
+  suggestions,
+  setSuggestions,
+  isGenerating,
+  setIsGenerating,
 }: FeatureSuggestionsDialogProps) {
-  const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<string[]>([]);
-  const [suggestions, setSuggestions] = useState<FeatureSuggestion[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isImporting, setIsImporting] = useState(false);
@@ -46,6 +53,13 @@ export function FeatureSuggestionsDialog({
 
   const { features, setFeatures } = useAppStore();
 
+  // Initialize selectedIds when suggestions change
+  useEffect(() => {
+    if (suggestions.length > 0 && selectedIds.size === 0) {
+      setSelectedIds(new Set(suggestions.map((s) => s.id)));
+    }
+  }, [suggestions, selectedIds.size]);
+
   // Auto-scroll progress when new content arrives
   useEffect(() => {
     if (autoScrollRef.current && scrollRef.current && isGenerating) {
@@ -53,7 +67,7 @@ export function FeatureSuggestionsDialog({
     }
   }, [progress, isGenerating]);
 
-  // Listen for suggestion events
+  // Listen for suggestion events when dialog is open
   useEffect(() => {
     if (!open) return;
 
@@ -85,7 +99,7 @@ export function FeatureSuggestionsDialog({
     return () => {
       unsubscribe();
     };
-  }, [open]);
+  }, [open, setSuggestions, setIsGenerating]);
 
   // Start generating suggestions
   const handleGenerate = useCallback(async () => {
@@ -111,7 +125,7 @@ export function FeatureSuggestionsDialog({
       toast.error("Failed to start generation");
       setIsGenerating(false);
     }
-  }, [projectPath]);
+  }, [projectPath, setIsGenerating, setSuggestions]);
 
   // Stop generating
   const handleStop = useCallback(async () => {
@@ -125,7 +139,7 @@ export function FeatureSuggestionsDialog({
     } catch (error) {
       console.error("Failed to stop generation:", error);
     }
-  }, []);
+  }, [setIsGenerating]);
 
   // Toggle suggestion selection
   const toggleSelection = useCallback((id: string) => {
@@ -198,6 +212,12 @@ export function FeatureSuggestionsDialog({
       setFeatures(updatedFeatures);
 
       toast.success(`Imported ${newFeatures.length} features to backlog!`);
+
+      // Clear suggestions after importing
+      setSuggestions([]);
+      setSelectedIds(new Set());
+      setProgress([]);
+
       onClose();
     } catch (error) {
       console.error("Failed to import features:", error);
@@ -205,7 +225,7 @@ export function FeatureSuggestionsDialog({
     } finally {
       setIsImporting(false);
     }
-  }, [selectedIds, suggestions, features, setFeatures, projectPath, onClose]);
+  }, [selectedIds, suggestions, features, setFeatures, setSuggestions, projectPath, onClose]);
 
   // Handle scroll to detect if user scrolled up
   const handleScroll = () => {
