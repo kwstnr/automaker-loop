@@ -251,7 +251,11 @@ class ClaudeCliDetector {
       }
     }
 
-    // Priority: Env OAuth Token > Stored OAuth Token > Stored API Key > Env API Key
+    // Authentication priority (highest to lowest):
+    // 1. Environment OAuth Token (CLAUDE_CODE_OAUTH_TOKEN)
+    // 2. Stored OAuth Token (from credentials file)
+    // 3. Stored API Key (from credentials file)
+    // 4. Environment API Key (ANTHROPIC_API_KEY)
     let authenticated = false;
     let method = "none";
 
