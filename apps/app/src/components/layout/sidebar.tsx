@@ -332,35 +332,32 @@ export function Sidebar() {
     };
   }, [setCurrentView]);
 
-  // Fetch running agents count and update every 2 seconds
-  useEffect(() => {
-    const fetchRunningAgentsCount = async () => {
-      try {
-        const api = getElectronAPI();
-        if (api.runningAgents) {
-          const result = await api.runningAgents.getAll();
-          if (result.success && result.runningAgents) {
-            setRunningAgentsCount(result.runningAgents.length);
-          }
+  // Fetch running agents count function - used for initial load and event-driven updates
+  const fetchRunningAgentsCount = useCallback(async () => {
+    try {
+      const api = getElectronAPI();
+      if (api.runningAgents) {
+        const result = await api.runningAgents.getAll();
+        if (result.success && result.runningAgents) {
+          setRunningAgentsCount(result.runningAgents.length);
         }
-      } catch (error) {
-        console.error("[Sidebar] Error fetching running agents count:", error);
       }
-    };
-
-    // Initial fetch
-    fetchRunningAgentsCount();
-
-    // Set up interval to refresh every 2 seconds
-    const interval = setInterval(fetchRunningAgentsCount, 2000);
-
-    return () => clearInterval(interval);
+    } catch (error) {
+      console.error("[Sidebar] Error fetching running agents count:", error);
+    }
   }, []);
 
   // Subscribe to auto-mode events to update running agents count in real-time
   useEffect(() => {
     const api = getElectronAPI();
-    if (!api.autoMode) return;
+    if (!api.autoMode) {
+      // If autoMode is not available, still fetch initial count
+      fetchRunningAgentsCount();
+      return;
+    }
+
+    // Initial fetch on mount
+    fetchRunningAgentsCount();
 
     const unsubscribe = api.autoMode.onEvent((event) => {
       // When a feature starts, completes, or errors, refresh the count
@@ -369,21 +366,6 @@ export function Sidebar() {
         event.type === "auto_mode_error" ||
         event.type === "auto_mode_feature_start"
       ) {
-        const fetchRunningAgentsCount = async () => {
-          try {
-            if (api.runningAgents) {
-              const result = await api.runningAgents.getAll();
-              if (result.success && result.runningAgents) {
-                setRunningAgentsCount(result.runningAgents.length);
-              }
-            }
-          } catch (error) {
-            console.error(
-              "[Sidebar] Error fetching running agents count:",
-              error
-            );
-          }
-        };
         fetchRunningAgentsCount();
       }
     });
@@ -391,7 +373,7 @@ export function Sidebar() {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [fetchRunningAgentsCount]);
 
   // Handle creating initial spec for new project
   const handleCreateInitialSpec = useCallback(async () => {

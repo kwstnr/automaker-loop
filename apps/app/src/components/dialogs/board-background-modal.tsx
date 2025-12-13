@@ -14,7 +14,7 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, defaultBackgroundSettings } from "@/store/app-store";
 import { getHttpApiClient } from "@/lib/http-api-client";
 import { toast } from "sonner";
 
@@ -55,27 +55,9 @@ export function BoardBackgroundModal({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // Get current background settings (live from store)
-  const backgroundSettings = currentProject
-    ? boardBackgroundByProject[currentProject.path] || {
-        imagePath: null,
-        cardOpacity: 100,
-        columnOpacity: 100,
-        columnBorderEnabled: true,
-        cardGlassmorphism: true,
-        cardBorderEnabled: true,
-        cardBorderOpacity: 100,
-        hideScrollbar: false,
-      }
-    : {
-        imagePath: null,
-        cardOpacity: 100,
-        columnOpacity: 100,
-        columnBorderEnabled: true,
-        cardGlassmorphism: true,
-        cardBorderEnabled: true,
-        cardBorderOpacity: 100,
-        hideScrollbar: false,
-      };
+  const backgroundSettings =
+    (currentProject && boardBackgroundByProject[currentProject.path]) ||
+    defaultBackgroundSettings;
 
   const cardOpacity = backgroundSettings.cardOpacity;
   const columnOpacity = backgroundSettings.columnOpacity;
@@ -84,6 +66,7 @@ export function BoardBackgroundModal({
   const cardBorderEnabled = backgroundSettings.cardBorderEnabled;
   const cardBorderOpacity = backgroundSettings.cardBorderOpacity;
   const hideScrollbar = backgroundSettings.hideScrollbar;
+  const imageVersion = backgroundSettings.imageVersion;
 
   // Update preview image when background settings change
   useEffect(() => {
@@ -91,8 +74,8 @@ export function BoardBackgroundModal({
       const serverUrl =
         process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3008";
       // Add cache-busting query parameter to force browser to reload image
-      const cacheBuster = backgroundSettings.imageVersion
-        ? `&v=${backgroundSettings.imageVersion}`
+      const cacheBuster = imageVersion
+        ? `&v=${imageVersion}`
         : `&v=${Date.now()}`;
       const imagePath = `${serverUrl}/api/fs/image?path=${encodeURIComponent(
         backgroundSettings.imagePath
@@ -101,11 +84,7 @@ export function BoardBackgroundModal({
     } else {
       setPreviewImage(null);
     }
-  }, [
-    currentProject,
-    backgroundSettings.imagePath,
-    backgroundSettings.imageVersion,
-  ]);
+  }, [currentProject, backgroundSettings.imagePath, imageVersion]);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {

@@ -309,26 +309,30 @@ export const KanbanCard = memo(function KanbanCard({
     ).borderColor = `color-mix(in oklch, var(--border) ${cardBorderOpacity}%, transparent)`;
   }
 
-  return (
+  const cardElement = (
     <Card
       ref={setNodeRef}
-      style={borderStyle}
+      style={isCurrentAutoTask ? style : borderStyle}
       className={cn(
         "cursor-grab active:cursor-grabbing transition-all relative kanban-card-content select-none",
         // Apply border class when border is enabled and opacity is 100%
         // When opacity is not 100%, we use inline styles for border color
-        cardBorderEnabled && cardBorderOpacity === 100 && "border-border",
+        // Skip border classes when animated border is active (isCurrentAutoTask)
+        !isCurrentAutoTask &&
+          cardBorderEnabled &&
+          cardBorderOpacity === 100 &&
+          "border-border",
         // When border is enabled but opacity is not 100%, we still need border width
-        cardBorderEnabled && cardBorderOpacity !== 100 && "border",
+        !isCurrentAutoTask &&
+          cardBorderEnabled &&
+          cardBorderOpacity !== 100 &&
+          "border",
         // Remove default background when using opacity overlay
         !isDragging && "bg-transparent",
         // Remove default backdrop-blur-sm from Card component when glassmorphism is disabled
         !glassmorphism && "backdrop-blur-[0px]!",
         isDragging && "scale-105 shadow-lg",
-        // Special border styles for running/error states override the border opacity
-        // These need to be applied with higher specificity
-        isCurrentAutoTask &&
-          "border-running-indicator border-2 shadow-running-indicator/50 shadow-lg animate-pulse",
+        // Error state border (only when not in progress)
         feature.error &&
           !isCurrentAutoTask &&
           "border-red-500 border-2 shadow-red-500/30 shadow-lg",
@@ -1056,4 +1060,11 @@ export const KanbanCard = memo(function KanbanCard({
       </Dialog>
     </Card>
   );
+
+  // Wrap with animated border when in progress
+  if (isCurrentAutoTask) {
+    return <div className="animated-border-wrapper">{cardElement}</div>;
+  }
+
+  return cardElement;
 });

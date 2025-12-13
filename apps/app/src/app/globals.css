@@ -1397,6 +1397,39 @@
   .text-running-indicator {
     color: var(--running-indicator-text);
   }
+
+  /* Animated border for in-progress cards */
+  @keyframes border-rotate {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .animated-border-wrapper {
+    position: relative;
+    border-radius: 0.75rem;
+    padding: 2px;
+    background: linear-gradient(
+      90deg,
+      var(--running-indicator),
+      color-mix(in oklch, var(--running-indicator), transparent 50%),
+      var(--running-indicator),
+      color-mix(in oklch, var(--running-indicator), transparent 50%),
+      var(--running-indicator)
+    );
+    background-size: 200% 100%;
+    animation: border-rotate 3s ease infinite;
+  }
+
+  .animated-border-wrapper > * {
+    border-radius: calc(0.75rem - 2px);
+  }
 }
 
 /* Retro Overrides for Utilities */

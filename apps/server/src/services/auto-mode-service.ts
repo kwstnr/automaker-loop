@@ -24,11 +24,13 @@ const execAsync = promisify(exec);
 
 interface Feature {
   id: string;
-  title: string;
+  category: string;
   description: string;
+  steps?: string[];
   status: string;
   priority?: number;
-  spec?: string;
+  imagePaths?: Array<string | { path: string; [key: string]: unknown }>;
+  [key: string]: unknown; // Allow additional fields
 }
 
 interface RunningFeature {
@@ -219,8 +221,17 @@ export class AutoModeService {
       // Build the prompt
       const prompt = this.buildFeaturePrompt(feature);
 
-      // Run the agent
-      await this.runAgent(workDir, featureId, prompt, abortController);
+      // Extract image paths from feature
+      const imagePaths = this.extractImagePaths(feature.imagePaths, workDir);
+
+      // Run the agent with image paths
+      await this.runAgent(
+        workDir,
+        featureId,
+        prompt,
+        abortController,
+        imagePaths
+      );
 
       // Mark as waiting_approval for user review
       await this.updateFeatureStatus(
@@ -551,7 +562,9 @@ Address the follow-up instructions above. Review the previous work and make the 
       // Load feature for commit message
       const feature = await this.loadFeature(projectPath, featureId);
       const commitMessage = feature
-        ? `feat: ${feature.title}\n\nImplemented by Automaker auto-mode`
+        ? `feat: ${this.extractTitleFromDescription(
+            feature.description
+          )}\n\nImplemented by Automaker auto-mode`
         : `feat: Feature ${featureId}`;
 
       // Stage and commit
@@ -841,20 +854,58 @@ Format your response as a structured markdown document.`;
     }
   }
 
+  /**
+   * Extract a title from feature description (first line or truncated)
+   */
+  private extractTitleFromDescription(description: string): string {
+    if (!description || !description.trim()) {
+      return "Untitled Feature";
+    }
+
+    // Get first line, or first 60 characters if no newline
+    const firstLine = description.split("\n")[0].trim();
+    if (firstLine.length <= 60) {
+      return firstLine;
+    }
+
+    // Truncate to 60 characters and add ellipsis
+    return firstLine.substring(0, 57) + "...";
+  }
+
+  /**
+   * Extract image paths from feature's imagePaths array
+   * Handles both string paths and objects with path property
+   */
+  private extractImagePaths(
+    imagePaths:
+      | Array<string | { path: string; [key: string]: unknown }>
+      | undefined,
+    projectPath: string
+  ): string[] {
+    if (!imagePaths || imagePaths.length === 0) {
+      return [];
+    }
+
+    return imagePaths
+      .map((imgPath) => {
+        const pathStr = typeof imgPath === "string" ? imgPath : imgPath.path;
+        // Resolve relative paths to absolute paths
+        return path.isAbsolute(pathStr)
+          ? pathStr
+          : path.join(projectPath, pathStr);
+      })
+      .filter((p) => p); // Filter out any empty paths
+  }
+
   private buildFeaturePrompt(feature: Feature): string {
+    const title = this.extractTitleFromDescription(feature.description);
+
     let prompt = `## Feature Implementation Task
 
 **Feature ID:** ${feature.id}
-**Title:** ${feature.title}
+**Title:** ${title}
 **Description:** ${feature.description}
 `;
-
-    if (feature.spec) {
-      prompt += `
-**Specification:**
-${feature.spec}
-`;
-    }
 
     prompt += `
 ## Instructions

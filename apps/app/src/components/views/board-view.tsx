@@ -24,6 +24,7 @@ import {
   AgentModel,
   ThinkingLevel,
   AIProfile,
+  defaultBackgroundSettings,
 } from "@/store/app-store";
 import { getElectronAPI } from "@/lib/electron";
 import { cn, modelSupportsThinking } from "@/lib/utils";
@@ -1547,25 +1548,6 @@ export function BoardView() {
       }
     });
 
-    // Sort waiting_approval column: justFinished features (within 2 minutes) go to the top
-    map.waiting_approval.sort((a, b) => {
-      // Helper to check if feature is "just finished" (within 2 minutes)
-      const isJustFinished = (feature: Feature) => {
-        if (!feature.justFinishedAt) return false;
-        const finishedTime = new Date(feature.justFinishedAt).getTime();
-        const now = Date.now();
-        const twoMinutes = 2 * 60 * 1000; // 2 minutes in milliseconds
-        return now - finishedTime < twoMinutes;
-      };
-
-      const aJustFinished = isJustFinished(a);
-      const bJustFinished = isJustFinished(b);
-      // Features with justFinishedAt within 2 minutes should appear first
-      if (aJustFinished && !bJustFinished) return -1;
-      if (!aJustFinished && bJustFinished) return 1;
-      return 0; // Keep original order for features with same justFinished status
-    });
-
     return map;
   }, [features, runningAutoTasks, searchQuery]);
 
@@ -1968,27 +1950,9 @@ export function BoardView() {
         {/* Kanban Columns */}
         {(() => {
           // Get background settings for current project
-          const backgroundSettings = currentProject
-            ? boardBackgroundByProject[currentProject.path] || {
-                imagePath: null,
-                cardOpacity: 100,
-                columnOpacity: 100,
-                columnBorderEnabled: true,
-                cardGlassmorphism: true,
-                cardBorderEnabled: true,
-                cardBorderOpacity: 100,
-                hideScrollbar: false,
-              }
-            : {
-                imagePath: null,
-                cardOpacity: 100,
-                columnOpacity: 100,
-                columnBorderEnabled: true,
-                cardGlassmorphism: true,
-                cardBorderEnabled: true,
-                cardBorderOpacity: 100,
-                hideScrollbar: false,
-              };
+          const backgroundSettings =
+            (currentProject && boardBackgroundByProject[currentProject.path]) ||
+            defaultBackgroundSettings;
 
           // Build background image style if image exists
           const backgroundImageStyle = backgroundSettings.imagePath
