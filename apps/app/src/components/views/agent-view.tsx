@@ -17,6 +17,7 @@ import {
   PanelLeft,
   Paperclip,
   X,
+  ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useElectronAgent } from "@/hooks/use-electron-agent";
@@ -588,6 +589,45 @@ export function AgentView() {
                       {message.content}
                     </p>
                   )}
+
+                  {/* Display attached images for user messages */}
+                  {message.role === "user" && message.images && message.images.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs text-primary-foreground/80">
+                        <ImageIcon className="w-3 h-3" />
+                        <span>{message.images.length} image{message.images.length > 1 ? 's' : ''} attached</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {message.images.map((image, index) => {
+                          // Construct proper data URL from base64 data and mime type
+                          const dataUrl = image.data.startsWith('data:')
+                            ? image.data
+                            : `data:${image.mimeType || 'image/png'};base64,${image.data}`;
+                          return (
+                            <div
+                              key={image.id || `img-${index}`}
+                              className="relative group rounded-lg overflow-hidden border border-primary-foreground/20 bg-primary-foreground/10"
+                            >
+                              <img
+                                src={dataUrl}
+                                alt={image.filename || `Attached image ${index + 1}`}
+                                className="w-20 h-20 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Open image in a larger view (could be enhanced with a modal)
+                                  window.open(dataUrl, '_blank');
+                                }}
+                              />
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1.5 py-0.5 text-[9px] text-white truncate">
+                                {image.filename || `Image ${index + 1}`}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <p
                     className={cn(
                       "text-[11px] mt-2 font-medium",
@@ -677,18 +717,22 @@ export function AgentView() {
                         <p className="text-xs font-medium text-foreground truncate max-w-24">
                           {image.filename}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {formatFileSize(image.size)}
-                        </p>
+                        {image.size !== undefined && (
+                          <p className="text-[10px] text-muted-foreground">
+                            {formatFileSize(image.size)}
+                          </p>
+                        )}
                       </div>
                       {/* Remove button */}
-                      <button
-                        onClick={() => removeImage(image.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                        disabled={isProcessing}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      {image.id && (
+                        <button
+                          onClick={() => removeImage(image.id!)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                          disabled={isProcessing}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

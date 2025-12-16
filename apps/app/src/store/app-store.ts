@@ -210,11 +210,11 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcuts = {
 };
 
 export interface ImageAttachment {
-  id: string;
+  id?: string; // Optional - may not be present in messages loaded from server
   data: string; // base64 encoded image data
   mimeType: string; // e.g., "image/png", "image/jpeg"
   filename: string;
-  size: number; // file size in bytes
+  size?: number; // file size in bytes - optional for messages from server
 }
 
 export interface ChatMessage {

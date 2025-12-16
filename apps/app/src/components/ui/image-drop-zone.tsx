@@ -244,14 +244,16 @@ export function ImageDropZone({
                   <p className="text-xs font-medium text-foreground truncate">
                     {image.filename}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatFileSize(image.size)}
-                  </p>
+                  {image.size !== undefined && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatFileSize(image.size)}
+                    </p>
+                  )}
                 </div>
                 {/* Remove button */}
-                {!disabled && (
+                {!disabled && image.id && (
                   <button
-                    onClick={() => removeImage(image.id)}
+                    onClick={() => removeImage(image.id!)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-destructive hover:text-destructive-foreground text-muted-foreground"
                   >
                     <X className="h-3 w-3" />
