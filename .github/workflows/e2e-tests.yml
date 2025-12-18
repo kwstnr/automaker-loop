@@ -33,7 +33,8 @@ jobs:
       - name: Install dependencies
         # Use npm install instead of npm ci to correctly resolve platform-specific
         # optional dependencies (e.g., @tailwindcss/oxide, lightningcss binaries)
-        run: npm install
+        # Skip scripts to avoid electron-builder install-app-deps which uses too much memory
+        run: npm install --ignore-scripts
 
       - name: Install Linux native bindings
         # Workaround for npm optional dependencies bug (npm/cli#4828)
