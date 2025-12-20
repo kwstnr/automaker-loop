@@ -2857,7 +2857,7 @@ test.describe("Worktree Integration Tests", () => {
     await expect(commitButton).not.toBeVisible({ timeout: 2000 });
   });
 
-  test("feature in waiting_approval without prUrl should show Commit button", async ({
+  test("feature in waiting_approval without prUrl should show Mark as Verified button", async ({
     page,
   }) => {
     await setupProjectWithPath(page, testRepo.path);
@@ -2867,7 +2867,7 @@ test.describe("Worktree Integration Tests", () => {
 
     // Create a feature
     await clickAddFeature(page);
-    await fillAddFeatureDialog(page, "Feature without PR for commit test", {
+    await fillAddFeatureDialog(page, "Feature without PR for mark as verified test", {
       category: "Testing",
     });
     await confirmAddFeature(page);
@@ -2880,7 +2880,7 @@ test.describe("Worktree Integration Tests", () => {
       const featureFilePath = path.join(featuresDir, dir, "feature.json");
       if (fs.existsSync(featureFilePath)) {
         const data = JSON.parse(fs.readFileSync(featureFilePath, "utf-8"));
-        return data.description === "Feature without PR for commit test";
+        return data.description === "Feature without PR for mark as verified test";
       }
       return false;
     });
@@ -2908,9 +2908,9 @@ test.describe("Worktree Integration Tests", () => {
     );
     await expect(featureCard).toBeVisible({ timeout: 5000 });
 
-    // Verify the Commit button is visible
-    const commitButton = page.locator(`[data-testid="commit-${featureData.id}"]`);
-    await expect(commitButton).toBeVisible({ timeout: 5000 });
+    // Verify the Mark as Verified button is visible
+    const markAsVerifiedButton = page.locator(`[data-testid="mark-as-verified-${featureData.id}"]`);
+    await expect(markAsVerifiedButton).toBeVisible({ timeout: 5000 });
 
     // Verify the Verify button is NOT visible
     const verifyButton = page.locator(`[data-testid="verify-${featureData.id}"]`);
