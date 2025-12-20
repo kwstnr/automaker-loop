@@ -170,14 +170,14 @@ async function startServer(): Promise<void> {
     ? path.join(process.resourcesPath, "server", "node_modules")
     : path.join(__dirname, "../../server/node_modules");
 
-  const defaultWorkspaceDir = path.join(app.getPath("documents"), "Automaker");
+  const defaultRootDirectory = path.join(app.getPath("documents"), "Automaker");
 
-  if (!fs.existsSync(defaultWorkspaceDir)) {
+  if (!fs.existsSync(defaultRootDirectory)) {
     try {
-      fs.mkdirSync(defaultWorkspaceDir, { recursive: true });
-      console.log("[Electron] Created workspace directory:", defaultWorkspaceDir);
+      fs.mkdirSync(defaultRootDirectory, { recursive: true });
+      console.log("[Electron] Created ALLOWED_ROOT_DIRECTORY:", defaultRootDirectory);
     } catch (error) {
-      console.error("[Electron] Failed to create workspace directory:", error);
+      console.error("[Electron] Failed to create ALLOWED_ROOT_DIRECTORY:", error);
     }
   }
 
@@ -186,7 +186,7 @@ async function startServer(): Promise<void> {
     PORT: SERVER_PORT.toString(),
     DATA_DIR: app.getPath("userData"),
     NODE_PATH: serverNodeModules,
-    WORKSPACE_DIR: process.env.WORKSPACE_DIR || defaultWorkspaceDir,
+    ALLOWED_ROOT_DIRECTORY: process.env.ALLOWED_ROOT_DIRECTORY || defaultRootDirectory,
   };
 
   console.log("[Electron] Starting backend server...");

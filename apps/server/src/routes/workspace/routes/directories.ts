@@ -11,19 +11,17 @@ import { getErrorMessage, logError } from "../common.js";
 export function createDirectoriesHandler() {
   return async (_req: Request, res: Response): Promise<void> => {
     try {
-      // Prefer ALLOWED_ROOT_DIRECTORY, fall back to WORKSPACE_DIR for backward compatibility
       const allowedRootDirectory = getAllowedRootDirectory();
-      const workspaceDir = process.env.WORKSPACE_DIR || allowedRootDirectory;
 
-      if (!workspaceDir) {
+      if (!allowedRootDirectory) {
         res.status(400).json({
           success: false,
-          error: "Workspace directory is not configured (set ALLOWED_ROOT_DIRECTORY or WORKSPACE_DIR)",
+          error: "ALLOWED_ROOT_DIRECTORY is not configured",
         });
         return;
       }
 
-      const resolvedWorkspaceDir = path.resolve(workspaceDir);
+      const resolvedWorkspaceDir = path.resolve(allowedRootDirectory);
 
       // Check if directory exists
       try {

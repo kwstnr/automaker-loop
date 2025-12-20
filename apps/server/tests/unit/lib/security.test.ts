@@ -53,24 +53,10 @@ describe("security.ts", () => {
       expect(allowed).toContain(path.resolve("/data/dir"));
     });
 
-    it("should include WORKSPACE_DIR if set", async () => {
-      process.env.ALLOWED_PROJECT_DIRS = "";
-      process.env.DATA_DIR = "";
-      process.env.WORKSPACE_DIR = "/workspace/dir";
-
-      const { initAllowedPaths, getAllowedPaths } = await import(
-        "@/lib/security.js"
-      );
-      initAllowedPaths();
-
-      const allowed = getAllowedPaths();
-      expect(allowed).toContain(path.resolve("/workspace/dir"));
-    });
-
     it("should handle empty ALLOWED_PROJECT_DIRS", async () => {
       process.env.ALLOWED_PROJECT_DIRS = "";
       process.env.DATA_DIR = "/data";
-      delete process.env.WORKSPACE_DIR;
+      delete process.env.ALLOWED_ROOT_DIRECTORY;
 
       const { initAllowedPaths, getAllowedPaths } = await import(
         "@/lib/security.js"
@@ -85,7 +71,7 @@ describe("security.ts", () => {
     it("should skip empty entries in comma list", async () => {
       process.env.ALLOWED_PROJECT_DIRS = "/path1,,/path2,  ,/path3";
       process.env.DATA_DIR = "";
-      delete process.env.WORKSPACE_DIR;
+      delete process.env.ALLOWED_ROOT_DIRECTORY;
 
       const { initAllowedPaths, getAllowedPaths } = await import(
         "@/lib/security.js"
@@ -152,7 +138,6 @@ describe("security.ts", () => {
     it("should allow all paths when no restrictions are configured", async () => {
       delete process.env.ALLOWED_PROJECT_DIRS;
       delete process.env.DATA_DIR;
-      delete process.env.WORKSPACE_DIR;
       delete process.env.ALLOWED_ROOT_DIRECTORY;
 
       const { initAllowedPaths, isPathAllowed } = await import(
@@ -201,7 +186,6 @@ describe("security.ts", () => {
     it("should not throw error for any path when no restrictions are configured", async () => {
       delete process.env.ALLOWED_PROJECT_DIRS;
       delete process.env.DATA_DIR;
-      delete process.env.WORKSPACE_DIR;
       delete process.env.ALLOWED_ROOT_DIRECTORY;
 
       const { initAllowedPaths, validatePath } = await import(

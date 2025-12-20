@@ -47,7 +47,7 @@ export function initAllowedPaths(): void {
     allowedPaths.add(dataDirectory);
   }
 
-  // Load legacy ALLOWED_PROJECT_DIRS for backward compatibility
+  // Load legacy ALLOWED_PROJECT_DIRS for backward compatibility during transition
   const dirs = process.env.ALLOWED_PROJECT_DIRS;
   if (dirs) {
     for (const dir of dirs.split(",")) {
@@ -56,12 +56,6 @@ export function initAllowedPaths(): void {
         allowedPaths.add(path.resolve(trimmed));
       }
     }
-  }
-
-  // Load legacy WORKSPACE_DIR for backward compatibility
-  const workspaceDir = process.env.WORKSPACE_DIR;
-  if (workspaceDir) {
-    allowedPaths.add(path.resolve(workspaceDir));
   }
 }
 
@@ -74,10 +68,10 @@ export function addAllowedPath(filePath: string): void {
 }
 
 /**
- * Check if a path is allowed based on ALLOWED_ROOT_DIRECTORY and legacy paths
+ * Check if a path is allowed based on ALLOWED_ROOT_DIRECTORY and legacy ALLOWED_PROJECT_DIRS
  * Returns true if:
  * - Path is within ALLOWED_ROOT_DIRECTORY, OR
- * - Path is within any legacy allowed path (ALLOWED_PROJECT_DIRS, WORKSPACE_DIR), OR
+ * - Path is within any legacy allowed path (ALLOWED_PROJECT_DIRS), OR
  * - Path is within DATA_DIR (appData exception), OR
  * - No restrictions are configured (backward compatibility)
  */
@@ -99,7 +93,7 @@ export function isPathAllowed(filePath: string): boolean {
     return true;
   }
 
-  // Check legacy allowed paths (ALLOWED_PROJECT_DIRS, WORKSPACE_DIR)
+  // Check legacy allowed paths (ALLOWED_PROJECT_DIRS)
   for (const allowedPath of allowedPaths) {
     if (isPathWithinDirectory(resolvedPath, allowedPath)) {
       return true;
