@@ -152,7 +152,7 @@ export function ValidationDialog({
             {/* Bug Confirmed Badge */}
             {validationResult.bugConfirmed && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
                 <span className="text-sm font-medium text-red-500">Bug Confirmed in Codebase</span>
               </div>
             )}

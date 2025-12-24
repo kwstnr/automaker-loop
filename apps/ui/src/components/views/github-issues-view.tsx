@@ -1,81 +1,35 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import {
-  CircleDot,
-  Loader2,
-  RefreshCw,
-  ExternalLink,
-  CheckCircle2,
-  Circle,
-  X,
-  Wand2,
-  GitPullRequest,
-  User,
-  CheckCircle,
-  Clock,
-  Sparkles,
-} from 'lucide-react';
-import {
-  getElectronAPI,
-  GitHubIssue,
-  IssueValidationResult,
-  IssueComplexity,
-  IssueValidationEvent,
-  StoredValidation,
-} from '@/lib/electron';
-
-/**
- * Map issue complexity to feature priority.
- * Lower complexity issues get higher priority (1 = high, 2 = medium).
- */
-function getFeaturePriority(complexity: IssueComplexity | undefined): number {
-  switch (complexity) {
-    case 'trivial':
-    case 'simple':
-      return 1; // High priority for easy wins
-    case 'moderate':
-    case 'complex':
-    case 'very_complex':
-    default:
-      return 2; // Medium priority for larger efforts
-  }
-}
+import { useState, useCallback, useMemo } from 'react';
+import { CircleDot, RefreshCw } from 'lucide-react';
+import { getElectronAPI, GitHubIssue, IssueValidationResult } from '@/lib/electron';
 import { useAppStore } from '@/store/app-store';
-import { Button } from '@/components/ui/button';
-import { Markdown } from '@/components/ui/markdown';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { LoadingState } from '@/components/ui/loading-state';
+import { ErrorState } from '@/components/ui/error-state';
 import { cn, pathsEqual } from '@/lib/utils';
 import { toast } from 'sonner';
-import { ValidationDialog } from './github-issues-view/validation-dialog';
+import { useGithubIssues, useIssueValidation } from './github-issues-view/hooks';
+import { IssueRow, IssueDetailPanel, IssuesListHeader } from './github-issues-view/components';
+import { ValidationDialog } from './github-issues-view/dialogs';
+import { formatDate, getFeaturePriority } from './github-issues-view/utils';
 
 export function GitHubIssuesView() {
-  const [openIssues, setOpenIssues] = useState<GitHubIssue[]>([]);
-  const [closedIssues, setClosedIssues] = useState<GitHubIssue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
-  const [validatingIssues, setValidatingIssues] = useState<Set<number>>(new Set());
   const [validationResult, setValidationResult] = useState<IssueValidationResult | null>(null);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
-  // Track cached validations for display
-  const [cachedValidations, setCachedValidations] = useState<Map<number, StoredValidation>>(
-    new Map()
-  );
-  // Track revalidation confirmation dialog
   const [showRevalidateConfirm, setShowRevalidateConfirm] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Refs for stable event handler (avoids re-subscribing on state changes)
-  const selectedIssueRef = useRef<GitHubIssue | null>(null);
-  const showValidationDialogRef = useRef(false);
-  const {
-    currentProject,
-    validationModel,
-    muteDoneSound,
-    defaultAIProfileId,
-    aiProfiles,
-    getCurrentWorktree,
-    worktreesByProject,
-  } = useAppStore();
+
+  const { currentProject, defaultAIProfileId, aiProfiles, getCurrentWorktree, worktreesByProject } =
+    useAppStore();
+
+  const { openIssues, closedIssues, loading, refreshing, error, refresh } = useGithubIssues();
+
+  const { validatingIssues, cachedValidations, handleValidateIssue, handleViewCachedValidation } =
+    useIssueValidation({
+      selectedIssue,
+      showValidationDialog,
+      onValidationResultChange: setValidationResult,
+      onShowValidationDialogChange: setShowValidationDialog,
+    });
 
   // Get default AI profile for task creation
   const defaultProfile = useMemo(() => {
@@ -98,327 +52,10 @@ export function GitHubIssuesView() {
     return selectedWorktree?.branch || worktrees.find((w) => w.isMain)?.branch || '';
   }, [currentProject?.path, getCurrentWorktree, worktreesByProject]);
 
-  const fetchIssues = useCallback(async () => {
-    if (!currentProject?.path) {
-      setError('No project selected');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setError(null);
-      const api = getElectronAPI();
-      if (api.github) {
-        const result = await api.github.listIssues(currentProject.path);
-        if (result.success) {
-          setOpenIssues(result.openIssues || []);
-          setClosedIssues(result.closedIssues || []);
-        } else {
-          setError(result.error || 'Failed to fetch issues');
-        }
-      }
-    } catch (err) {
-      console.error('[GitHubIssuesView] Error fetching issues:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch issues');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [currentProject?.path]);
-
-  useEffect(() => {
-    fetchIssues();
-  }, [fetchIssues]);
-
-  // Load cached validations on mount
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadCachedValidations = async () => {
-      if (!currentProject?.path) return;
-
-      try {
-        const api = getElectronAPI();
-        if (api.github?.getValidations) {
-          const result = await api.github.getValidations(currentProject.path);
-          if (isMounted && result.success && result.validations) {
-            const map = new Map<number, StoredValidation>();
-            for (const v of result.validations) {
-              map.set(v.issueNumber, v);
-            }
-            setCachedValidations(map);
-          }
-        }
-      } catch (err) {
-        if (isMounted) {
-          console.error('[GitHubIssuesView] Failed to load cached validations:', err);
-        }
-      }
-    };
-
-    loadCachedValidations();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [currentProject?.path]);
-
-  // Load running validations on mount (restore validatingIssues state)
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadRunningValidations = async () => {
-      if (!currentProject?.path) return;
-
-      try {
-        const api = getElectronAPI();
-        if (api.github?.getValidationStatus) {
-          const result = await api.github.getValidationStatus(currentProject.path);
-          if (isMounted && result.success && result.runningIssues) {
-            setValidatingIssues(new Set(result.runningIssues));
-          }
-        }
-      } catch (err) {
-        if (isMounted) {
-          console.error('[GitHubIssuesView] Failed to load running validations:', err);
-        }
-      }
-    };
-
-    loadRunningValidations();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [currentProject?.path]);
-
-  // Keep refs in sync with state for stable event handler
-  useEffect(() => {
-    selectedIssueRef.current = selectedIssue;
-  }, [selectedIssue]);
-
-  useEffect(() => {
-    showValidationDialogRef.current = showValidationDialog;
-  }, [showValidationDialog]);
-
-  // Subscribe to validation events
-  useEffect(() => {
-    const api = getElectronAPI();
-    if (!api.github?.onValidationEvent) return;
-
-    const handleValidationEvent = (event: IssueValidationEvent) => {
-      // Only handle events for current project
-      if (event.projectPath !== currentProject?.path) return;
-
-      switch (event.type) {
-        case 'issue_validation_start':
-          setValidatingIssues((prev) => new Set([...prev, event.issueNumber]));
-          break;
-
-        case 'issue_validation_complete':
-          setValidatingIssues((prev) => {
-            const next = new Set(prev);
-            next.delete(event.issueNumber);
-            return next;
-          });
-
-          // Update cached validations (use event.model to avoid stale closure race condition)
-          setCachedValidations((prev) => {
-            const next = new Map(prev);
-            next.set(event.issueNumber, {
-              issueNumber: event.issueNumber,
-              issueTitle: event.issueTitle,
-              validatedAt: new Date().toISOString(),
-              model: event.model,
-              result: event.result,
-            });
-            return next;
-          });
-
-          // Show toast notification
-          toast.success(`Issue #${event.issueNumber} validated: ${event.result.verdict}`, {
-            description:
-              event.result.verdict === 'valid'
-                ? 'Issue is ready to be converted to a task'
-                : event.result.verdict === 'invalid'
-                  ? 'Issue may have problems'
-                  : 'Issue needs clarification',
-          });
-
-          // Play audio notification (if not muted)
-          if (!muteDoneSound) {
-            try {
-              if (!audioRef.current) {
-                audioRef.current = new Audio('/sounds/ding.mp3');
-              }
-              audioRef.current.play().catch(() => {
-                // Audio play might fail due to browser restrictions
-              });
-            } catch {
-              // Ignore audio errors
-            }
-          }
-
-          // If validation dialog is open for this issue, update the result
-          if (
-            selectedIssueRef.current?.number === event.issueNumber &&
-            showValidationDialogRef.current
-          ) {
-            setValidationResult(event.result);
-          }
-          break;
-
-        case 'issue_validation_error':
-          setValidatingIssues((prev) => {
-            const next = new Set(prev);
-            next.delete(event.issueNumber);
-            return next;
-          });
-          toast.error(`Validation failed for issue #${event.issueNumber}`, {
-            description: event.error,
-          });
-          if (
-            selectedIssueRef.current?.number === event.issueNumber &&
-            showValidationDialogRef.current
-          ) {
-            setShowValidationDialog(false);
-          }
-          break;
-      }
-    };
-
-    const unsubscribe = api.github.onValidationEvent(handleValidationEvent);
-    return () => unsubscribe();
-  }, [currentProject?.path, muteDoneSound]);
-
-  // Cleanup audio element on unmount to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchIssues();
-  }, [fetchIssues]);
-
   const handleOpenInGitHub = useCallback((url: string) => {
     const api = getElectronAPI();
     api.openExternalLink(url);
   }, []);
-
-  const handleValidateIssue = useCallback(
-    async (
-      issue: GitHubIssue,
-      options: { showDialog?: boolean; forceRevalidate?: boolean } = {}
-    ) => {
-      const { showDialog = true, forceRevalidate = false } = options;
-
-      if (!currentProject?.path) {
-        toast.error('No project selected');
-        return;
-      }
-
-      // Check if already validating this issue
-      if (validatingIssues.has(issue.number)) {
-        toast.info(`Validation already in progress for issue #${issue.number}`);
-        return;
-      }
-
-      // Check for cached result - if fresh, show it directly (unless force revalidate)
-      const cached = cachedValidations.get(issue.number);
-      if (cached && showDialog && !forceRevalidate) {
-        // Check if validation is stale (older than 24 hours)
-        const validatedAt = new Date(cached.validatedAt);
-        const hoursSinceValidation = (Date.now() - validatedAt.getTime()) / (1000 * 60 * 60);
-        const isStale = hoursSinceValidation > 24;
-
-        if (!isStale) {
-          // Show cached result directly
-          setValidationResult(cached.result);
-          setShowValidationDialog(true);
-          return;
-        }
-      }
-
-      // Start async validation
-      setValidationResult(null);
-      if (showDialog) {
-        setShowValidationDialog(true);
-      }
-
-      try {
-        const api = getElectronAPI();
-        if (api.github?.validateIssue) {
-          const result = await api.github.validateIssue(
-            currentProject.path,
-            {
-              issueNumber: issue.number,
-              issueTitle: issue.title,
-              issueBody: issue.body || '',
-              issueLabels: issue.labels.map((l) => l.name),
-            },
-            validationModel
-          );
-
-          if (!result.success) {
-            toast.error(result.error || 'Failed to start validation');
-            if (showDialog) {
-              setShowValidationDialog(false);
-            }
-          }
-          // On success, the result will come through the event stream
-        }
-      } catch (err) {
-        console.error('[GitHubIssuesView] Validation error:', err);
-        toast.error(err instanceof Error ? err.message : 'Failed to validate issue');
-        if (showDialog) {
-          setShowValidationDialog(false);
-        }
-      }
-    },
-    [currentProject?.path, validatingIssues, cachedValidations, validationModel]
-  );
-
-  // View cached validation result
-  const handleViewCachedValidation = useCallback(
-    async (issue: GitHubIssue) => {
-      const cached = cachedValidations.get(issue.number);
-      if (cached) {
-        setValidationResult(cached.result);
-        setShowValidationDialog(true);
-
-        // Mark as viewed if not already viewed
-        if (!cached.viewedAt && currentProject?.path) {
-          try {
-            const api = getElectronAPI();
-            if (api.github?.markValidationViewed) {
-              await api.github.markValidationViewed(currentProject.path, issue.number);
-              // Update local state
-              setCachedValidations((prev) => {
-                const next = new Map(prev);
-                const updated = prev.get(issue.number);
-                if (updated) {
-                  next.set(issue.number, {
-                    ...updated,
-                    viewedAt: new Date().toISOString(),
-                  });
-                }
-                return next;
-              });
-            }
-          } catch (err) {
-            console.error('[GitHubIssuesView] Failed to mark validation as viewed:', err);
-          }
-        }
-      }
-    },
-    [cachedValidations, currentProject?.path]
-  );
 
   const handleConvertToTask = useCallback(
     async (issue: GitHubIssue, validation: IssueValidationResult) => {
@@ -478,37 +115,12 @@ export function GitHubIssuesView() {
     [currentProject?.path, defaultProfile, currentBranch]
   );
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   if (error) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-        <div className="p-4 rounded-full bg-destructive/10 mb-4">
-          <CircleDot className="h-12 w-12 text-destructive" />
-        </div>
-        <h2 className="text-lg font-medium mb-2">Failed to Load Issues</h2>
-        <p className="text-muted-foreground max-w-md mb-4">{error}</p>
-        <Button variant="outline" onClick={handleRefresh}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Try Again
-        </Button>
-      </div>
-    );
+    return <ErrorState error={error} title="Failed to Load Issues" onRetry={refresh} />;
   }
 
   const totalIssues = openIssues.length + closedIssues.length;
@@ -523,24 +135,12 @@ export function GitHubIssuesView() {
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-green-500/10">
-              <CircleDot className="h-5 w-5 text-green-500" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">Issues</h1>
-              <p className="text-xs text-muted-foreground">
-                {totalIssues === 0
-                  ? 'No issues found'
-                  : `${openIssues.length} open, ${closedIssues.length} closed`}
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-          </Button>
-        </div>
+        <IssuesListHeader
+          openCount={openIssues.length}
+          closedCount={closedIssues.length}
+          refreshing={refreshing}
+          onRefresh={refresh}
+        />
 
         {/* Issues List */}
         <div className="flex-1 overflow-auto">
@@ -595,239 +195,17 @@ export function GitHubIssuesView() {
 
       {/* Issue Detail Panel */}
       {selectedIssue && (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Detail Header */}
-          <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
-            <div className="flex items-center gap-2 min-w-0">
-              {selectedIssue.state === 'OPEN' ? (
-                <Circle className="h-4 w-4 text-green-500 flex-shrink-0" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 text-purple-500 flex-shrink-0" />
-              )}
-              <span className="text-sm font-medium truncate">
-                #{selectedIssue.number} {selectedIssue.title}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {(() => {
-                const isValidating = validatingIssues.has(selectedIssue.number);
-                const cached = cachedValidations.get(selectedIssue.number);
-                const isStale =
-                  cached &&
-                  (Date.now() - new Date(cached.validatedAt).getTime()) / (1000 * 60 * 60) > 24;
-
-                if (isValidating) {
-                  return (
-                    <Button variant="default" size="sm" disabled>
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      Validating...
-                    </Button>
-                  );
-                }
-
-                if (cached && !isStale) {
-                  return (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewCachedValidation(selectedIssue)}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1 text-green-500" />
-                        View Result
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowRevalidateConfirm(true)}
-                        title="Re-validate"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    </>
-                  );
-                }
-
-                if (cached && isStale) {
-                  return (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewCachedValidation(selectedIssue)}
-                      >
-                        <Clock className="h-4 w-4 mr-1 text-yellow-500" />
-                        View (stale)
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() =>
-                          handleValidateIssue(selectedIssue, { forceRevalidate: true })
-                        }
-                      >
-                        <Wand2 className="h-4 w-4 mr-1" />
-                        Re-validate
-                      </Button>
-                    </>
-                  );
-                }
-
-                return (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => handleValidateIssue(selectedIssue)}
-                  >
-                    <Wand2 className="h-4 w-4 mr-1" />
-                    Validate with AI
-                  </Button>
-                );
-              })()}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenInGitHub(selectedIssue.url)}
-              >
-                <ExternalLink className="h-4 w-4 mr-1" />
-                Open in GitHub
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedIssue(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Issue Detail Content */}
-          <div className="flex-1 overflow-auto p-6">
-            {/* Title */}
-            <h1 className="text-xl font-bold mb-2">{selectedIssue.title}</h1>
-
-            {/* Meta info */}
-            <div className="flex items-center gap-3 text-sm text-muted-foreground mb-4">
-              <span
-                className={cn(
-                  'px-2 py-0.5 rounded-full text-xs font-medium',
-                  selectedIssue.state === 'OPEN'
-                    ? 'bg-green-500/10 text-green-500'
-                    : 'bg-purple-500/10 text-purple-500'
-                )}
-              >
-                {selectedIssue.state === 'OPEN' ? 'Open' : 'Closed'}
-              </span>
-              <span>
-                #{selectedIssue.number} opened {formatDate(selectedIssue.createdAt)} by{' '}
-                <span className="font-medium text-foreground">{selectedIssue.author.login}</span>
-              </span>
-            </div>
-
-            {/* Labels */}
-            {selectedIssue.labels.length > 0 && (
-              <div className="flex items-center gap-2 mb-4 flex-wrap">
-                {selectedIssue.labels.map((label) => (
-                  <span
-                    key={label.name}
-                    className="px-2 py-0.5 text-xs font-medium rounded-full"
-                    style={{
-                      backgroundColor: `#${label.color}20`,
-                      color: `#${label.color}`,
-                      border: `1px solid #${label.color}40`,
-                    }}
-                  >
-                    {label.name}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Assignees */}
-            {selectedIssue.assignees && selectedIssue.assignees.length > 0 && (
-              <div className="flex items-center gap-2 mb-4">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Assigned to:</span>
-                <div className="flex items-center gap-2">
-                  {selectedIssue.assignees.map((assignee) => (
-                    <span
-                      key={assignee.login}
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20"
-                    >
-                      {assignee.avatarUrl && (
-                        <img
-                          src={assignee.avatarUrl}
-                          alt={assignee.login}
-                          className="h-4 w-4 rounded-full"
-                        />
-                      )}
-                      {assignee.login}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Linked Pull Requests */}
-            {selectedIssue.linkedPRs && selectedIssue.linkedPRs.length > 0 && (
-              <div className="mb-6 p-3 rounded-lg bg-muted/30 border border-border">
-                <div className="flex items-center gap-2 mb-2">
-                  <GitPullRequest className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium">Linked Pull Requests</span>
-                </div>
-                <div className="space-y-2">
-                  {selectedIssue.linkedPRs.map((pr) => (
-                    <div key={pr.number} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className={cn(
-                            'px-1.5 py-0.5 text-xs font-medium rounded',
-                            pr.state === 'open'
-                              ? 'bg-green-500/10 text-green-500'
-                              : pr.state === 'merged'
-                                ? 'bg-purple-500/10 text-purple-500'
-                                : 'bg-red-500/10 text-red-500'
-                          )}
-                        >
-                          {pr.state === 'open'
-                            ? 'Open'
-                            : pr.state === 'merged'
-                              ? 'Merged'
-                              : 'Closed'}
-                        </span>
-                        <span className="text-muted-foreground">#{pr.number}</span>
-                        <span className="truncate">{pr.title}</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 flex-shrink-0"
-                        onClick={() => handleOpenInGitHub(pr.url)}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Body */}
-            {selectedIssue.body ? (
-              <Markdown className="text-sm">{selectedIssue.body}</Markdown>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">No description provided.</p>
-            )}
-
-            {/* Open in GitHub CTA */}
-            <div className="mt-8 p-4 rounded-lg bg-muted/50 border border-border">
-              <p className="text-sm text-muted-foreground mb-3">
-                View comments, add reactions, and more on GitHub.
-              </p>
-              <Button onClick={() => handleOpenInGitHub(selectedIssue.url)}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                View Full Issue on GitHub
-              </Button>
-            </div>
-          </div>
-        </div>
+        <IssueDetailPanel
+          issue={selectedIssue}
+          validatingIssues={validatingIssues}
+          cachedValidations={cachedValidations}
+          onValidateIssue={handleValidateIssue}
+          onViewCachedValidation={handleViewCachedValidation}
+          onOpenInGitHub={handleOpenInGitHub}
+          onClose={() => setSelectedIssue(null)}
+          onShowRevalidateConfirm={() => setShowRevalidateConfirm(true)}
+          formatDate={formatDate}
+        />
       )}
 
       {/* Validation Dialog */}
@@ -855,137 +233,6 @@ export function GitHubIssuesView() {
           }
         }}
       />
-    </div>
-  );
-}
-
-interface IssueRowProps {
-  issue: GitHubIssue;
-  isSelected: boolean;
-  onClick: () => void;
-  onOpenExternal: () => void;
-  formatDate: (date: string) => string;
-  /** Cached validation for this issue (if any) */
-  cachedValidation?: StoredValidation | null;
-  /** Whether validation is currently running for this issue */
-  isValidating?: boolean;
-}
-
-function IssueRow({
-  issue,
-  isSelected,
-  onClick,
-  onOpenExternal,
-  formatDate,
-  cachedValidation,
-  isValidating,
-}: IssueRowProps) {
-  // Check if validation exists and calculate staleness
-  const validationHoursSince = cachedValidation
-    ? (Date.now() - new Date(cachedValidation.validatedAt).getTime()) / (1000 * 60 * 60)
-    : null;
-  const isValidationStale = validationHoursSince !== null && validationHoursSince > 24;
-
-  // Check if validation is unviewed (exists, not stale, not viewed)
-  const hasUnviewedValidation =
-    cachedValidation && !cachedValidation.viewedAt && !isValidationStale;
-
-  // Check if validation has been viewed (exists and was viewed)
-  const hasViewedValidation = cachedValidation && cachedValidation.viewedAt && !isValidationStale;
-  return (
-    <div
-      className={cn(
-        'group flex items-start gap-3 p-3 cursor-pointer hover:bg-accent/50 transition-colors',
-        isSelected && 'bg-accent'
-      )}
-      onClick={onClick}
-    >
-      {issue.state === 'OPEN' ? (
-        <Circle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-      ) : (
-        <CheckCircle2 className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
-      )}
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate">{issue.title}</span>
-        </div>
-
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <span className="text-xs text-muted-foreground">
-            #{issue.number} opened {formatDate(issue.createdAt)} by {issue.author.login}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
-          {/* Labels */}
-          {issue.labels.map((label) => (
-            <span
-              key={label.name}
-              className="px-1.5 py-0.5 text-[10px] font-medium rounded-full"
-              style={{
-                backgroundColor: `#${label.color}20`,
-                color: `#${label.color}`,
-                border: `1px solid #${label.color}40`,
-              }}
-            >
-              {label.name}
-            </span>
-          ))}
-
-          {/* Linked PR indicator */}
-          {issue.linkedPRs && issue.linkedPRs.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-purple-500/10 text-purple-500 border border-purple-500/20">
-              <GitPullRequest className="h-3 w-3" />
-              {issue.linkedPRs.length} PR{issue.linkedPRs.length > 1 ? 's' : ''}
-            </span>
-          )}
-
-          {/* Assignee indicator */}
-          {issue.assignees && issue.assignees.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20">
-              <User className="h-3 w-3" />
-              {issue.assignees.map((a) => a.login).join(', ')}
-            </span>
-          )}
-
-          {/* Validating indicator */}
-          {isValidating && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-primary/10 text-primary border border-primary/20 animate-in fade-in duration-200">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Analyzing...
-            </span>
-          )}
-
-          {/* Unviewed validation indicator */}
-          {!isValidating && hasUnviewedValidation && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 animate-in fade-in duration-200">
-              <Sparkles className="h-3 w-3" />
-              Analysis Ready
-            </span>
-          )}
-
-          {/* Viewed validation indicator */}
-          {!isValidating && hasViewedValidation && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
-              <CheckCircle className="h-3 w-3" />
-              Validated
-            </span>
-          )}
-        </div>
-      </div>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        className="flex-shrink-0 opacity-0 group-hover:opacity-100"
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenExternal();
-        }}
-      >
-        <ExternalLink className="h-3.5 w-3.5" />
-      </Button>
     </div>
   );
 }
