@@ -12,6 +12,84 @@ describe('sdk-options.ts', () => {
     process.env = originalEnv;
   });
 
+  describe('isCloudStoragePath', () => {
+    it('should detect Dropbox paths on macOS', async () => {
+      const { isCloudStoragePath } = await import('@/lib/sdk-options.js');
+      expect(isCloudStoragePath('/Users/test/Library/CloudStorage/Dropbox-Personal/project')).toBe(
+        true
+      );
+      expect(isCloudStoragePath('/Users/test/Library/CloudStorage/Dropbox/project')).toBe(true);
+    });
+
+    it('should detect Google Drive paths on macOS', async () => {
+      const { isCloudStoragePath } = await import('@/lib/sdk-options.js');
+      expect(
+        isCloudStoragePath('/Users/test/Library/CloudStorage/GoogleDrive-user@gmail.com/project')
+      ).toBe(true);
+    });
+
+    it('should detect OneDrive paths on macOS', async () => {
+      const { isCloudStoragePath } = await import('@/lib/sdk-options.js');
+      expect(isCloudStoragePath('/Users/test/Library/CloudStorage/OneDrive-Personal/project')).toBe(
+        true
+      );
+    });
+
+    it('should detect iCloud Drive paths on macOS', async () => {
+      const { isCloudStoragePath } = await import('@/lib/sdk-options.js');
+      expect(
+        isCloudStoragePath('/Users/test/Library/Mobile Documents/com~apple~CloudDocs/project')
+      ).toBe(true);
+    });
+
+    it('should return false for local paths', async () => {
+      const { isCloudStoragePath } = await import('@/lib/sdk-options.js');
+      expect(isCloudStoragePath('/Users/test/projects/myapp')).toBe(false);
+      expect(isCloudStoragePath('/home/user/code/project')).toBe(false);
+      expect(isCloudStoragePath('/var/www/app')).toBe(false);
+    });
+
+    it('should return false for relative paths not in cloud storage', async () => {
+      const { isCloudStoragePath } = await import('@/lib/sdk-options.js');
+      expect(isCloudStoragePath('./project')).toBe(false);
+      expect(isCloudStoragePath('../other-project')).toBe(false);
+    });
+  });
+
+  describe('checkSandboxCompatibility', () => {
+    it('should return enabled=false when user disables sandbox', async () => {
+      const { checkSandboxCompatibility } = await import('@/lib/sdk-options.js');
+      const result = checkSandboxCompatibility('/Users/test/project', false);
+      expect(result.enabled).toBe(false);
+      expect(result.disabledReason).toBe('user_setting');
+    });
+
+    it('should return enabled=false for cloud storage paths even when sandbox enabled', async () => {
+      const { checkSandboxCompatibility } = await import('@/lib/sdk-options.js');
+      const result = checkSandboxCompatibility(
+        '/Users/test/Library/CloudStorage/Dropbox-Personal/project',
+        true
+      );
+      expect(result.enabled).toBe(false);
+      expect(result.disabledReason).toBe('cloud_storage');
+      expect(result.message).toContain('cloud storage');
+    });
+
+    it('should return enabled=true for local paths when sandbox enabled', async () => {
+      const { checkSandboxCompatibility } = await import('@/lib/sdk-options.js');
+      const result = checkSandboxCompatibility('/Users/test/projects/myapp', true);
+      expect(result.enabled).toBe(true);
+      expect(result.disabledReason).toBeUndefined();
+    });
+
+    it('should return enabled=false when enableSandboxMode is undefined', async () => {
+      const { checkSandboxCompatibility } = await import('@/lib/sdk-options.js');
+      const result = checkSandboxCompatibility('/Users/test/project', undefined);
+      expect(result.enabled).toBe(false);
+      expect(result.disabledReason).toBe('user_setting');
+    });
+  });
+
   describe('TOOL_PRESETS', () => {
     it('should export readOnly tools', async () => {
       const { TOOL_PRESETS } = await import('@/lib/sdk-options.js');
@@ -233,6 +311,17 @@ describe('sdk-options.ts', () => {
 
       expect(options.sandbox).toBeUndefined();
     });
+
+    it('should auto-disable sandbox for cloud storage paths', async () => {
+      const { createChatOptions } = await import('@/lib/sdk-options.js');
+
+      const options = createChatOptions({
+        cwd: '/Users/test/Library/CloudStorage/Dropbox-Personal/project',
+        enableSandboxMode: true,
+      });
+
+      expect(options.sandbox).toBeUndefined();
+    });
   });
 
   describe('createAutoModeOptions', () => {
@@ -290,6 +379,28 @@ describe('sdk-options.ts', () => {
 
       const options = createAutoModeOptions({
         cwd: '/test/path',
+      });
+
+      expect(options.sandbox).toBeUndefined();
+    });
+
+    it('should auto-disable sandbox for cloud storage paths', async () => {
+      const { createAutoModeOptions } = await import('@/lib/sdk-options.js');
+
+      const options = createAutoModeOptions({
+        cwd: '/Users/test/Library/CloudStorage/Dropbox-Personal/project',
+        enableSandboxMode: true,
+      });
+
+      expect(options.sandbox).toBeUndefined();
+    });
+
+    it('should auto-disable sandbox for iCloud paths', async () => {
+      const { createAutoModeOptions } = await import('@/lib/sdk-options.js');
+
+      const options = createAutoModeOptions({
+        cwd: '/Users/test/Library/Mobile Documents/com~apple~CloudDocs/project',
+        enableSandboxMode: true,
       });
 
       expect(options.sandbox).toBeUndefined();

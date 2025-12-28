@@ -48,6 +48,101 @@ export function validateWorkingDirectory(cwd: string): void {
 }
 
 /**
+ * Known cloud storage path patterns where sandbox mode is incompatible.
+ *
+ * The Claude CLI sandbox feature uses filesystem isolation that conflicts with
+ * cloud storage providers' virtual filesystem implementations. This causes the
+ * Claude process to exit with code 1 when sandbox is enabled for these paths.
+ *
+ * Affected providers (macOS paths):
+ * - Dropbox: ~/Library/CloudStorage/Dropbox-*
+ * - Google Drive: ~/Library/CloudStorage/GoogleDrive-*
+ * - OneDrive: ~/Library/CloudStorage/OneDrive-*
+ * - iCloud Drive: ~/Library/Mobile Documents/
+ * - Box: ~/Library/CloudStorage/Box-*
+ *
+ * @see https://github.com/anthropics/claude-code/issues/XXX (TODO: file upstream issue)
+ */
+const CLOUD_STORAGE_PATH_PATTERNS = [
+  '/Library/CloudStorage/', // Dropbox, Google Drive, OneDrive, Box on macOS
+  '/Library/Mobile Documents/', // iCloud Drive on macOS
+  '/Google Drive/', // Google Drive on some systems
+  '/Dropbox/', // Dropbox on Linux/alternative installs
+  '/OneDrive/', // OneDrive on Linux/alternative installs
+] as const;
+
+/**
+ * Check if a path is within a cloud storage location.
+ *
+ * Cloud storage providers use virtual filesystem implementations that are
+ * incompatible with the Claude CLI sandbox feature, causing process crashes.
+ *
+ * @param cwd - The working directory path to check
+ * @returns true if the path is in a cloud storage location
+ */
+export function isCloudStoragePath(cwd: string): boolean {
+  const resolvedPath = path.resolve(cwd);
+  return CLOUD_STORAGE_PATH_PATTERNS.some((pattern) => resolvedPath.includes(pattern));
+}
+
+/**
+ * Result of sandbox compatibility check
+ */
+export interface SandboxCheckResult {
+  /** Whether sandbox should be enabled */
+  enabled: boolean;
+  /** If disabled, the reason why */
+  disabledReason?: 'cloud_storage' | 'user_setting';
+  /** Human-readable message for logging/UI */
+  message?: string;
+}
+
+/**
+ * Determine if sandbox mode should be enabled for a given configuration.
+ *
+ * Sandbox mode is automatically disabled for cloud storage paths because the
+ * Claude CLI sandbox feature is incompatible with virtual filesystem
+ * implementations used by cloud storage providers (Dropbox, Google Drive, etc.).
+ *
+ * @param cwd - The working directory
+ * @param enableSandboxMode - User's sandbox mode setting
+ * @returns SandboxCheckResult with enabled status and reason if disabled
+ */
+export function checkSandboxCompatibility(
+  cwd: string,
+  enableSandboxMode?: boolean
+): SandboxCheckResult {
+  // User has disabled sandbox mode
+  if (!enableSandboxMode) {
+    return {
+      enabled: false,
+      disabledReason: 'user_setting',
+    };
+  }
+
+  // Check for cloud storage incompatibility
+  if (isCloudStoragePath(cwd)) {
+    const message =
+      `Sandbox mode auto-disabled: Project is in a cloud storage location (${cwd}). ` +
+      `The Claude CLI sandbox feature is incompatible with cloud storage filesystems. ` +
+      `To use sandbox mode, move your project to a local directory.`;
+
+    console.warn(`[SdkOptions] ${message}`);
+
+    return {
+      enabled: false,
+      disabledReason: 'cloud_storage',
+      message,
+    };
+  }
+
+  // Sandbox is compatible and enabled
+  return {
+    enabled: true,
+  };
+}
+
+/**
  * Tool presets for different use cases
  */
 export const TOOL_PRESETS = {
@@ -317,7 +412,7 @@ export function createSuggestionsOptions(config: CreateSdkOptionsConfig): Option
  * - Full tool access for code modification
  * - Standard turns for interactive sessions
  * - Model priority: explicit model > session model > chat default
- * - Sandbox mode controlled by enableSandboxMode setting
+ * - Sandbox mode controlled by enableSandboxMode setting (auto-disabled for cloud storage)
  * - When autoLoadClaudeMd is true, uses preset mode and settingSources for CLAUDE.md loading
  */
 export function createChatOptions(config: CreateSdkOptionsConfig): Options {
@@ -330,13 +425,16 @@ export function createChatOptions(config: CreateSdkOptionsConfig): Options {
   // Build CLAUDE.md auto-loading options if enabled
   const claudeMdOptions = buildClaudeMdOptions(config);
 
+  // Check sandbox compatibility (auto-disables for cloud storage paths)
+  const sandboxCheck = checkSandboxCompatibility(config.cwd, config.enableSandboxMode);
+
   return {
     ...getBaseOptions(),
     model: getModelForUseCase('chat', effectiveModel),
     maxTurns: MAX_TURNS.standard,
     cwd: config.cwd,
     allowedTools: [...TOOL_PRESETS.chat],
-    ...(config.enableSandboxMode && {
+    ...(sandboxCheck.enabled && {
       sandbox: {
         enabled: true,
         autoAllowBashIfSandboxed: true,
@@ -354,7 +452,7 @@ export function createChatOptions(config: CreateSdkOptionsConfig): Options {
  * - Full tool access for code modification and implementation
  * - Extended turns for thorough feature implementation
  * - Uses default model (can be overridden)
- * - Sandbox mode controlled by enableSandboxMode setting
+ * - Sandbox mode controlled by enableSandboxMode setting (auto-disabled for cloud storage)
  * - When autoLoadClaudeMd is true, uses preset mode and settingSources for CLAUDE.md loading
  */
 export function createAutoModeOptions(config: CreateSdkOptionsConfig): Options {
@@ -364,13 +462,16 @@ export function createAutoModeOptions(config: CreateSdkOptionsConfig): Options {
   // Build CLAUDE.md auto-loading options if enabled
   const claudeMdOptions = buildClaudeMdOptions(config);
 
+  // Check sandbox compatibility (auto-disables for cloud storage paths)
+  const sandboxCheck = checkSandboxCompatibility(config.cwd, config.enableSandboxMode);
+
   return {
     ...getBaseOptions(),
     model: getModelForUseCase('auto', config.model),
     maxTurns: MAX_TURNS.maximum,
     cwd: config.cwd,
     allowedTools: [...TOOL_PRESETS.fullAccess],
-    ...(config.enableSandboxMode && {
+    ...(sandboxCheck.enabled && {
       sandbox: {
         enabled: true,
         autoAllowBashIfSandboxed: true,
