@@ -800,8 +800,14 @@ export async function getClaudeAuthIndicators(): Promise<ClaudeAuthIndicators> {
       const content = await systemPathReadFile(credPath);
       const credentials = JSON.parse(content);
       result.hasCredentialsFile = true;
+      // Support multiple credential formats:
+      // 1. Claude Code CLI format: { claudeAiOauth: { accessToken, refreshToken } }
+      // 2. Legacy format: { oauth_token } or { access_token }
+      // 3. API key format: { api_key }
+      const hasClaudeOauth = !!credentials.claudeAiOauth?.accessToken;
+      const hasLegacyOauth = !!(credentials.oauth_token || credentials.access_token);
       result.credentials = {
-        hasOAuthToken: !!(credentials.oauth_token || credentials.access_token),
+        hasOAuthToken: hasClaudeOauth || hasLegacyOauth,
         hasApiKey: !!credentials.api_key,
       };
       break;

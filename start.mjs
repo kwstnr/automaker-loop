@@ -18,11 +18,9 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { createRequire } from 'module';
 import {
   createRestrictedFs,
   log,
-  runNpm,
   runNpmAndWait,
   runNpx,
   printHeader,
@@ -35,10 +33,8 @@ import {
   prompt,
   killProcessTree,
   sleep,
+  launchDockerContainers,
 } from './scripts/launcher-utils.mjs';
-
-const require = createRequire(import.meta.url);
-const crossSpawn = require('cross-spawn');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -230,37 +226,7 @@ async function main() {
       break;
     } else if (choice === '3') {
       console.log('');
-      log('Launching Docker Container (Isolated Mode)...', 'blue');
-      log('Building and starting Docker containers...', 'yellow');
-      console.log('');
-
-      // Check if ANTHROPIC_API_KEY is set
-      if (!process.env.ANTHROPIC_API_KEY) {
-        log('Warning: ANTHROPIC_API_KEY environment variable is not set.', 'yellow');
-        log('The server will require an API key to function.', 'yellow');
-        log('Set it with: export ANTHROPIC_API_KEY=your-key', 'yellow');
-        console.log('');
-      }
-
-      // Build and start containers with docker-compose
-      processes.docker = crossSpawn('docker', ['compose', 'up', '--build'], {
-        stdio: 'inherit',
-        cwd: __dirname,
-        env: {
-          ...process.env,
-        },
-      });
-
-      log('Docker containers starting...', 'blue');
-      log('UI will be available at: http://localhost:3007', 'green');
-      log('API will be available at: http://localhost:3008', 'green');
-      console.log('');
-      log('Press Ctrl+C to stop the containers.', 'yellow');
-
-      await new Promise((resolve) => {
-        processes.docker.on('close', resolve);
-      });
-
+      await launchDockerContainers({ baseDir: __dirname, processes });
       break;
     } else {
       log('Invalid choice. Please enter 1, 2, or 3.', 'red');

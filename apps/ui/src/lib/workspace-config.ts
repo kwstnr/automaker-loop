@@ -7,11 +7,27 @@ import { createLogger } from '@automaker/utils/logger';
 import { getHttpApiClient } from './http-api-client';
 import { getElectronAPI } from './electron';
 import { getItem, setItem } from './storage';
-import path from 'path';
 
 const logger = createLogger('WorkspaceConfig');
 
 const LAST_PROJECT_DIR_KEY = 'automaker:lastProjectDir';
+
+/**
+ * Browser-compatible path join utility
+ * Works in both Node.js and browser environments
+ */
+function joinPath(...parts: string[]): string {
+  // Remove empty parts and normalize separators
+  const normalized = parts
+    .filter((p) => p)
+    .map((p) => p.replace(/\\/g, '/'))
+    .join('/')
+    .replace(/\/+/g, '/'); // Remove duplicate slashes
+
+  // Preserve leading slash if first part had it
+  const hasLeadingSlash = parts[0]?.startsWith('/');
+  return hasLeadingSlash ? '/' + normalized.replace(/^\//, '') : normalized;
+}
 
 /**
  * Gets the default Documents/Automaker directory path
@@ -21,7 +37,7 @@ async function getDefaultDocumentsPath(): Promise<string | null> {
   try {
     const api = getElectronAPI();
     const documentsPath = await api.getPath('documents');
-    return path.join(documentsPath, 'Automaker');
+    return joinPath(documentsPath, 'Automaker');
   } catch (error) {
     logger.error('Failed to get documents path:', error);
     return null;
