@@ -230,3 +230,29 @@ export type {
   IdeationStreamEvent,
   IdeationAnalysisEvent,
 } from './ideation.js';
+
+// Review loop types
+export type {
+  ReviewVerdict,
+  ReviewIssueSeverity,
+  ReviewIssueCategory,
+  ReviewIssue,
+  ReviewResult,
+  NotificationChannel,
+  ReviewLoopConfig,
+  ReviewLoopState,
+  ReviewLoopSession,
+  PRComment,
+  PRReview,
+  ChecksStatus,
+  PRFeedback,
+  FeedbackSource,
+  ActionableFeedbackItem,
+  FeedbackQuestion,
+  HumanDecisionItem,
+  AnalyzedFeedbackStatus,
+  AnalyzedFeedback,
+  RefinementResult,
+  ReviewLoopEvent,
+} from './review-loop.js';
+export { DEFAULT_REVIEW_LOOP_CONFIG } from './review-loop.js';
