@@ -324,6 +324,24 @@ export function getProfileModelString(profile: AIProfile): string {
 }
 
 /**
+ * AutoPRSettings - Configuration for automatic Pull Request creation
+ *
+ * Controls automatic PR creation behavior when features are completed.
+ * When enabled, PRs can be created automatically with configurable options
+ * for draft mode, target branch, and title template.
+ */
+export interface AutoPRSettings {
+  /** Whether automatic PR creation is enabled (default: false) */
+  enabled: boolean;
+  /** Create PRs as drafts instead of ready for review (default: false) */
+  createAsDraft: boolean;
+  /** Target branch for PRs (e.g., 'main', 'develop'). If not set, uses repository default */
+  baseBranch?: string;
+  /** Template for PR titles. Supports placeholders like {{featureName}}, {{featureId}} */
+  prTitleTemplate?: string;
+}
+
+/**
  * MCPToolInfo - Information about a tool provided by an MCP server
  *
  * Contains the tool's name, description, and whether it's enabled for use.
@@ -605,6 +623,13 @@ export interface GlobalSettings {
    * Value: agent configuration
    */
   customSubagents?: Record<string, import('./provider.js').AgentDefinition>;
+
+  // Auto PR Settings
+  /**
+   * Configuration for automatic Pull Request creation
+   * Controls whether and how PRs are created when features are completed
+   */
+  autoPR?: AutoPRSettings;
 }
 
 /**
@@ -747,6 +772,14 @@ export const CREDENTIALS_VERSION = 1;
 /** Current version of the project settings schema */
 export const PROJECT_SETTINGS_VERSION = 1;
 
+/** Default Auto PR settings - disabled by default */
+export const DEFAULT_AUTO_PR_SETTINGS: AutoPRSettings = {
+  enabled: false,
+  createAsDraft: false,
+  baseBranch: undefined,
+  prTitleTemplate: undefined,
+};
+
 /** Default keyboard shortcut bindings */
 export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcuts = {
   board: 'K',
@@ -823,6 +856,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   skillsSources: ['user', 'project'],
   enableSubagents: true,
   subagentsSources: ['user', 'project'],
+  autoPR: DEFAULT_AUTO_PR_SETTINGS,
 };
 
 /** Default credentials (empty strings - user must provide API keys) */

@@ -25,6 +25,7 @@ export type {
   PhaseModelConfig,
   PhaseModelKey,
   PhaseModelEntry,
+  AutoPRSettings,
 } from '@automaker/types';
 
 export {
@@ -33,6 +34,7 @@ export {
   DEFAULT_CREDENTIALS,
   DEFAULT_PROJECT_SETTINGS,
   DEFAULT_PHASE_MODELS,
+  DEFAULT_AUTO_PR_SETTINGS,
   SETTINGS_VERSION,
   CREDENTIALS_VERSION,
   PROJECT_SETTINGS_VERSION,
