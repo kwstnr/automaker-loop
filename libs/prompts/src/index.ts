@@ -21,6 +21,24 @@ export {
   getAvailableEnhancementModes,
 } from './enhancement.js';
 
+// Feedback-fixer prompts (Review Loop)
+export {
+  FEEDBACK_FIXER_SYSTEM_PROMPT,
+  FEEDBACK_FIXER_USER_PROMPT_TEMPLATE,
+  PR_FEEDBACK_FIXER_SYSTEM_PROMPT,
+  PR_FEEDBACK_FIXER_USER_PROMPT_TEMPLATE,
+  FEEDBACK_FIXER_SUMMARY_PROMPT,
+  FEEDBACK_FIXER_EXAMPLES,
+  DEFAULT_FEEDBACK_FIXER_CONFIG,
+  buildFeedbackFixerSystemPrompt,
+  buildFeedbackFixerUserPrompt,
+  buildPRFeedbackFixerUserPrompt,
+  filterIssuesBySeverity,
+  groupIssuesByFile,
+  hasBlockingIssues,
+} from './feedback-fixer.js';
+export type { FeedbackFixerExample, FeedbackFixerConfig } from './feedback-fixer.js';
+
 // Re-export types from @automaker/types
 export type { EnhancementMode, EnhancementExample } from '@automaker/types';
 
@@ -41,6 +59,7 @@ export {
   DEFAULT_BACKLOG_PLAN_USER_PROMPT_TEMPLATE,
   DEFAULT_BACKLOG_PLAN_PROMPTS,
   DEFAULT_ENHANCEMENT_PROMPTS,
+  DEFAULT_REVIEW_LOOP_PROMPTS,
   DEFAULT_PROMPTS,
 } from './defaults.js';
 
@@ -59,4 +78,6 @@ export type {
   ResolvedAgentPrompts,
   ResolvedBacklogPlanPrompts,
   ResolvedEnhancementPrompts,
+  ResolvedReviewLoopPrompts,
+  ReviewLoopPrompts,
 } from '@automaker/types';

@@ -151,3 +151,36 @@ export interface ResolvedEnhancementPrompts {
   simplifySystemPrompt: string;
   acceptanceSystemPrompt: string;
 }
+
+/**
+ * ReviewLoopPrompts - Customizable prompts for the Review Loop system
+ *
+ * Controls how the AI reviews code changes and addresses feedback.
+ */
+export interface ReviewLoopPrompts {
+  /** System prompt for addressing review feedback and fixing issues */
+  feedbackFixerSystemPrompt?: CustomPrompt;
+
+  /** User prompt template for addressing self-review issues */
+  feedbackFixerUserPromptTemplate?: CustomPrompt;
+
+  /** System prompt for addressing PR feedback from human reviewers */
+  prFeedbackFixerSystemPrompt?: CustomPrompt;
+
+  /** User prompt template for addressing PR feedback */
+  prFeedbackFixerUserPromptTemplate?: CustomPrompt;
+
+  /** Prompt for summarizing fixes made during an iteration */
+  feedbackFixerSummaryPrompt?: CustomPrompt;
+}
+
+/**
+ * ResolvedReviewLoopPrompts - All fields resolved to string values
+ */
+export interface ResolvedReviewLoopPrompts {
+  feedbackFixerSystemPrompt: string;
+  feedbackFixerUserPromptTemplate: string;
+  prFeedbackFixerSystemPrompt: string;
+  prFeedbackFixerUserPromptTemplate: string;
+  feedbackFixerSummaryPrompt: string;
+}

@@ -15,6 +15,7 @@ import type {
   ResolvedAgentPrompts,
   ResolvedBacklogPlanPrompts,
   ResolvedEnhancementPrompts,
+  ResolvedReviewLoopPrompts,
 } from '@automaker/types';
 import { STATIC_PORT, SERVER_PORT } from '@automaker/types';
 
@@ -429,6 +430,31 @@ export const DEFAULT_ENHANCEMENT_PROMPTS: ResolvedEnhancementPrompts = {
 
 /**
  * ========================================================================
+ * REVIEW LOOP / FEEDBACK FIXER PROMPTS
+ * ========================================================================
+ */
+
+import {
+  FEEDBACK_FIXER_SYSTEM_PROMPT,
+  FEEDBACK_FIXER_USER_PROMPT_TEMPLATE,
+  PR_FEEDBACK_FIXER_SYSTEM_PROMPT,
+  PR_FEEDBACK_FIXER_USER_PROMPT_TEMPLATE,
+  FEEDBACK_FIXER_SUMMARY_PROMPT,
+} from './feedback-fixer.js';
+
+/**
+ * Default Review Loop prompts (for feedback-fixer agent)
+ */
+export const DEFAULT_REVIEW_LOOP_PROMPTS: ResolvedReviewLoopPrompts = {
+  feedbackFixerSystemPrompt: FEEDBACK_FIXER_SYSTEM_PROMPT,
+  feedbackFixerUserPromptTemplate: FEEDBACK_FIXER_USER_PROMPT_TEMPLATE,
+  prFeedbackFixerSystemPrompt: PR_FEEDBACK_FIXER_SYSTEM_PROMPT,
+  prFeedbackFixerUserPromptTemplate: PR_FEEDBACK_FIXER_USER_PROMPT_TEMPLATE,
+  feedbackFixerSummaryPrompt: FEEDBACK_FIXER_SUMMARY_PROMPT,
+};
+
+/**
+ * ========================================================================
  * COMBINED DEFAULTS
  * ========================================================================
  */
@@ -441,4 +467,5 @@ export const DEFAULT_PROMPTS = {
   agent: DEFAULT_AGENT_PROMPTS,
   backlogPlan: DEFAULT_BACKLOG_PLAN_PROMPTS,
   enhancement: DEFAULT_ENHANCEMENT_PROMPTS,
+  reviewLoop: DEFAULT_REVIEW_LOOP_PROMPTS,
 } as const;

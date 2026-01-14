@@ -84,11 +84,13 @@ export type {
   AgentPrompts,
   BacklogPlanPrompts,
   EnhancementPrompts,
+  ReviewLoopPrompts,
   PromptCustomization,
   ResolvedAutoModePrompts,
   ResolvedAgentPrompts,
   ResolvedBacklogPlanPrompts,
   ResolvedEnhancementPrompts,
+  ResolvedReviewLoopPrompts,
 } from './prompts.js';
 export { DEFAULT_PROMPT_CUSTOMIZATION } from './prompts.js';
 
