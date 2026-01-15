@@ -723,6 +723,26 @@ export class AutoModeService {
         model: tempRunningFeature.model,
         provider: tempRunningFeature.provider,
       });
+
+      // Auto-commit if enabled and feature is verified
+      if (finalStatus === 'verified') {
+        try {
+          const settings = await this.settingsService?.getGlobalSettings();
+          if (settings?.autoPR?.autoCommit) {
+            logger.info(`Auto-commit enabled, committing feature ${featureId}`);
+            const worktreePath = tempRunningFeature.worktreePath ?? undefined;
+            const commitHash = await this.commitFeature(projectPath, featureId, worktreePath);
+            if (commitHash) {
+              logger.info(`Auto-committed feature ${featureId}: ${commitHash.substring(0, 8)}`);
+            } else {
+              logger.info(`Auto-commit: no changes to commit for feature ${featureId}`);
+            }
+          }
+        } catch (autoCommitError) {
+          logger.warn(`Auto-commit failed for feature ${featureId}:`, autoCommitError);
+          // Don't fail the feature - just log the error
+        }
+      }
     } catch (error) {
       const errorInfo = classifyError(error);
 

@@ -335,6 +335,8 @@ export function getProfileModelString(profile: AIProfile): string {
 export interface AutoPRSettings {
   /** Whether automatic PR creation is enabled (default: false) */
   enabled: boolean;
+  /** Automatically commit and push when feature reaches 'verified' status (default: false) */
+  autoCommit: boolean;
   /** Create PRs as drafts instead of ready for review (default: false) */
   createAsDraft: boolean;
   /** Target branch for PRs (e.g., 'main', 'develop'). If not set, uses repository default */
@@ -784,6 +786,7 @@ export const PROJECT_SETTINGS_VERSION = 1;
 /** Default Auto PR settings - disabled by default */
 export const DEFAULT_AUTO_PR_SETTINGS: AutoPRSettings = {
   enabled: false,
+  autoCommit: false,
   createAsDraft: false,
   baseBranch: undefined,
   prTitleTemplate: undefined,

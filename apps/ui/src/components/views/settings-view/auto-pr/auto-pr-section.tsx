@@ -1,14 +1,13 @@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { GitPullRequest, FileText, GitBranch, Info } from 'lucide-react';
+import { GitPullRequest, FileText, GitBranch, Info, GitCommitHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
 import type { AutoPRSettings } from '@automaker/types';
 
 const CARD_TITLE = 'Automatic Pull Requests';
-const CARD_SUBTITLE =
-  'Configure automatic Pull Request creation when features are completed.';
+const CARD_SUBTITLE = 'Configure automatic Pull Request creation when features are completed.';
 
 interface AutoPRSectionProps {
   autoPR: AutoPRSettings;
@@ -31,9 +30,7 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center border border-brand-500/20">
             <GitPullRequest className="w-5 h-5 text-brand-500" />
           </div>
-          <h2 className="text-lg font-semibold text-foreground tracking-tight">
-            {CARD_TITLE}
-          </h2>
+          <h2 className="text-lg font-semibold text-foreground tracking-tight">{CARD_TITLE}</h2>
         </div>
         <p className="text-sm text-muted-foreground/80 ml-12">{CARD_SUBTITLE}</p>
       </div>
@@ -58,9 +55,43 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
               Enable Automatic PR Creation
             </Label>
             <p className="text-xs text-muted-foreground/80 leading-relaxed">
-              When enabled, a Pull Request will be automatically created when an agent
-              successfully completes a feature. The PR will target the configured base
-              branch with changes from the feature branch.
+              When enabled, a Pull Request will be automatically created when an agent successfully
+              completes a feature. The PR will target the configured base branch with changes from
+              the feature branch.
+            </p>
+          </div>
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-border/30" />
+
+        {/* Auto-Commit Toggle */}
+        <div
+          className={cn(
+            'group flex items-start space-x-3 p-3 rounded-xl hover:bg-accent/30 transition-colors duration-200 -mx-3',
+            !autoPR.enabled && 'opacity-50 pointer-events-none'
+          )}
+        >
+          <Switch
+            id="auto-pr-auto-commit"
+            checked={autoPR.autoCommit}
+            onCheckedChange={(checked) => onAutoPRChange({ autoCommit: checked })}
+            disabled={!autoPR.enabled}
+            className="mt-0.5"
+            data-testid="auto-pr-auto-commit-switch"
+          />
+          <div className="space-y-1.5 flex-1">
+            <Label
+              htmlFor="auto-pr-auto-commit"
+              className="text-foreground cursor-pointer font-medium flex items-center gap-2"
+            >
+              <GitCommitHorizontal className="w-4 h-4 text-brand-500" />
+              Auto-Commit on Verification
+            </Label>
+            <p className="text-xs text-muted-foreground/80 leading-relaxed">
+              Automatically commit and push changes when a feature reaches "verified" status. When
+              combined with auto PR creation, this enables a fully automated workflow from feature
+              completion to PR creation.
             </p>
           </div>
         </div>
@@ -78,9 +109,7 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
           <Switch
             id="auto-pr-draft"
             checked={autoPR.createAsDraft}
-            onCheckedChange={(checked) =>
-              onAutoPRChange({ createAsDraft: checked })
-            }
+            onCheckedChange={(checked) => onAutoPRChange({ createAsDraft: checked })}
             disabled={!autoPR.enabled}
             className="mt-0.5"
             data-testid="auto-pr-draft-switch"
@@ -94,8 +123,8 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
               Create as Draft
             </Label>
             <p className="text-xs text-muted-foreground/80 leading-relaxed">
-              Create Pull Requests as drafts instead of ready for review. This allows
-              you to review and make additional changes before marking them as ready.
+              Create Pull Requests as drafts instead of ready for review. This allows you to review
+              and make additional changes before marking them as ready.
             </p>
           </div>
         </div>
@@ -115,10 +144,7 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
           </div>
           <div className="space-y-2 flex-1">
             <div className="flex items-center justify-between">
-              <Label
-                htmlFor="auto-pr-base-branch"
-                className="text-foreground font-medium"
-              >
+              <Label htmlFor="auto-pr-base-branch" className="text-foreground font-medium">
                 Base Branch Override
               </Label>
             </div>
@@ -137,8 +163,10 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
               data-testid="auto-pr-base-branch-input"
             />
             <p className="text-xs text-muted-foreground/80 leading-relaxed">
-              The target branch for Pull Requests. Leave empty to use the repository's
-              default branch (usually <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">main</code> or <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">master</code>).
+              The target branch for Pull Requests. Leave empty to use the repository's default
+              branch (usually{' '}
+              <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">main</code> or{' '}
+              <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">master</code>).
             </p>
           </div>
         </div>
@@ -158,10 +186,7 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
           </div>
           <div className="space-y-2 flex-1">
             <div className="flex items-center justify-between">
-              <Label
-                htmlFor="auto-pr-title-template"
-                className="text-foreground font-medium"
-              >
+              <Label htmlFor="auto-pr-title-template" className="text-foreground font-medium">
                 PR Title Template
               </Label>
             </div>
@@ -181,9 +206,14 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
             />
             <p className="text-xs text-muted-foreground/80 leading-relaxed">
               Customize the PR title format. Supports placeholders:{' '}
-              <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">{'{{featureName}}'}</code>,{' '}
-              <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">{'{{featureId}}'}</code>.
-              Leave empty to use the feature name as the title.
+              <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">
+                {'{{featureName}}'}
+              </code>
+              ,{' '}
+              <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">
+                {'{{featureId}}'}
+              </code>
+              . Leave empty to use the feature name as the title.
             </p>
           </div>
         </div>
@@ -192,9 +222,10 @@ export function AutoPRSection({ autoPR, onAutoPRChange }: AutoPRSectionProps) {
         <div className="flex items-start gap-2 p-3 rounded-xl bg-accent/20 border border-border/30">
           <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Auto PR requires GitHub CLI (<code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">gh</code>)
-            to be installed and authenticated. The feature branch must be pushed to
-            the remote repository before a PR can be created.
+            Auto PR requires GitHub CLI (
+            <code className="text-[10px] px-1 py-0.5 rounded bg-accent/50">gh</code>) to be
+            installed and authenticated. The feature branch must be pushed to the remote repository
+            before a PR can be created.
           </p>
         </div>
       </div>
