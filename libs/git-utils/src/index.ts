@@ -17,3 +17,27 @@ export {
   generateDiffsForNonGitDirectory,
   getGitRepositoryDiffs,
 } from './diff.js';
+
+// Export diff analyzer utilities
+export {
+  // Types
+  type DiffFileChangeType,
+  type DiffLineChangeType,
+  type DiffLine,
+  type DiffHunk,
+  type DiffFile,
+  type DiffSummary,
+  type AnalyzedDiff,
+  type CodeContextOptions,
+  type FileCodeContext,
+  type CodeContextRange,
+  // Functions
+  parseDiff,
+  extractCodeContext,
+  getFilesByChangeType,
+  getChangedLines,
+  getLineChangeType,
+  formatDiffSummary,
+  filterDiffByPatterns,
+  formatDiffForReview,
+} from './diff-analyzer.js';
