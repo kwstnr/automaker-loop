@@ -35,6 +35,7 @@ import { getFeatureDir, getAutomakerDir, getFeaturesDir } from '@automaker/platf
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
+import os from 'os';
 import * as secureFs from '../lib/secure-fs.js';
 import type { EventEmitter } from '../lib/events.js';
 import {
@@ -1608,7 +1609,14 @@ Address the follow-up instructions above. Review the previous work and make the 
 
       // Create new PR if one doesn't exist
       if (!prUrl) {
+        // Create temp file for PR body to handle multi-line content properly
+        const tempBodyFile = path.join(os.tmpdir(), `automaker-pr-body-${Date.now()}.md`);
+        let tempFileCreated = false;
         try {
+          // Write body to temp file to avoid shell escaping issues with multi-line content
+          await secureFs.writeFile(tempBodyFile, prBody);
+          tempFileCreated = true;
+
           let prCmd = `gh pr create --base "${baseBranch}"`;
 
           if (upstreamRepo && originOwner) {
@@ -1617,7 +1625,8 @@ Address the follow-up instructions above. Review the previous work and make the 
             prCmd += ` --head "${branchName}"`;
           }
 
-          prCmd += ` --title "${prTitle.replace(/"/g, '\\"')}" --body "${prBody.replace(/"/g, '\\"')}" ${draftFlag}`;
+          // Use --body-file instead of --body to handle multi-line content properly
+          prCmd += ` --title "${prTitle.replace(/"/g, '\\"')}" --body-file "${tempBodyFile}" ${draftFlag}`;
           prCmd = prCmd.trim();
 
           logger.debug(`Creating PR with command: ${prCmd}`);
@@ -1688,6 +1697,15 @@ Address the follow-up instructions above. Review the previous work and make the 
             });
             return;
           }
+        } finally {
+          // Clean up temp file
+          if (tempFileCreated) {
+            try {
+              await secureFs.unlink(tempBodyFile);
+            } catch {
+              // Ignore cleanup errors - temp file will be cleaned up by OS eventually
+            }
+          }
         }
       }
 
@@ -1711,18 +1729,22 @@ Address the follow-up instructions above. Review the previous work and make the 
         const prMergeMonitor = getPRMergeMonitor();
         if (prMergeMonitor) {
           logger.info(`Starting PR merge monitor for feature ${featureId}, PR #${prNumber}`);
-          prMergeMonitor.startMonitoring({
-            featureId,
-            projectPath,
-            prNumber,
-            prUrl,
-            branch: branchName,
-            worktreePath: workDir,
-          }).catch((error) => {
-            logger.warn(`Failed to start PR merge monitor for feature ${featureId}:`, error);
-          });
+          prMergeMonitor
+            .startMonitoring({
+              featureId,
+              projectPath,
+              prNumber,
+              prUrl,
+              branch: branchName,
+              worktreePath: workDir,
+            })
+            .catch((error) => {
+              logger.warn(`Failed to start PR merge monitor for feature ${featureId}:`, error);
+            });
         } else {
-          logger.debug(`PR merge monitor not initialized, skipping merge monitoring for feature ${featureId}`);
+          logger.debug(
+            `PR merge monitor not initialized, skipping merge monitoring for feature ${featureId}`
+          );
         }
 
         // Also store PR info in the feature metadata for tracking
@@ -1733,7 +1755,10 @@ Address the follow-up instructions above. Review the previous work and make the 
           });
           logger.info(`Stored PR URL in feature metadata for feature ${featureId}`);
         } catch (metadataError) {
-          logger.warn(`Failed to store PR URL in feature metadata for ${featureId}:`, metadataError);
+          logger.warn(
+            `Failed to store PR URL in feature metadata for ${featureId}:`,
+            metadataError
+          );
         }
       }
     } catch (error) {
