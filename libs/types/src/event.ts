@@ -39,6 +39,19 @@ export type EventType =
   | 'ideation:idea-created'
   | 'ideation:idea-updated'
   | 'ideation:idea-deleted'
-  | 'ideation:idea-converted';
+  | 'ideation:idea-converted'
+  | 'pr_monitor_started'
+  | 'pr_monitor_new_feedback'
+  | 'pr_monitor_checks_changed'
+  | 'pr_monitor_state_changed'
+  | 'pr_monitor_stopped'
+  | 'pr_monitor_error'
+  | 'review-loop:state-changed'
+  | 'review-loop:review-completed'
+  | 'review-loop:refinement-started'
+  | 'review-loop:refinement-completed'
+  | 'review-loop:pr-feedback-received'
+  | 'review-loop:ready-for-human'
+  | 'review-loop:error';
 
 export type EventCallback = (type: EventType, payload: unknown) => void;

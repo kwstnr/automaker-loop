@@ -243,6 +243,7 @@ export type {
   ReviewIssue,
   ReviewResult,
   NotificationChannel,
+  QualityGateThresholds,
   ReviewLoopConfig,
   ReviewLoopState,
   ReviewLoopSession,
@@ -258,5 +259,12 @@ export type {
   AnalyzedFeedback,
   RefinementResult,
   ReviewLoopEvent,
+  PRFeedbackMonitorConfig,
+  MonitoredPRState,
+  PRFeedbackMonitorEvent,
 } from './review-loop.js';
-export { DEFAULT_REVIEW_LOOP_CONFIG } from './review-loop.js';
+export {
+  DEFAULT_QUALITY_GATE_THRESHOLDS,
+  DEFAULT_REVIEW_LOOP_CONFIG,
+  DEFAULT_PR_FEEDBACK_MONITOR_CONFIG,
+} from './review-loop.js';

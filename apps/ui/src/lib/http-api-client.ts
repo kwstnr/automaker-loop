@@ -33,9 +33,21 @@ import type {
   UpdateIdeaInput,
   ConvertToFeatureOptions,
 } from './electron';
-import type { Message, SessionListItem } from '@/types/electron';
+import type { Message, SessionListItem, ReviewLoopWebSocketEvent } from '@/types/electron';
 import type { Feature, ClaudeUsageResponse, CodexUsageResponse } from '@/store/app-store';
 import type { WorktreeAPI, GitAPI, ModelDefinition, ProviderStatus } from '@/types/electron';
+
+/**
+ * Review Loop Event Types for API subscriptions
+ */
+export type ReviewLoopEventType =
+  | 'review-loop:state-changed'
+  | 'review-loop:review-completed'
+  | 'review-loop:refinement-started'
+  | 'review-loop:refinement-completed'
+  | 'review-loop:pr-feedback-received'
+  | 'review-loop:ready-for-human'
+  | 'review-loop:error';
 import { getGlobalFileBrowser } from '@/contexts/file-browser-context';
 
 const logger = createLogger('HttpClient');
@@ -2210,6 +2222,82 @@ export class HttpApiClient implements ElectronAPI {
       }>;
       error?: string;
     }> => this.post('/api/mcp/tools', { serverId }),
+  };
+
+  // Review Loop API - AI self-review and refinement
+  reviewLoop = {
+    /**
+     * Subscribe to state change events
+     * Emitted when review loop transitions between states
+     */
+    onStateChanged: (callback: (event: ReviewLoopWebSocketEvent) => void): (() => void) => {
+      return this.subscribeToEvent('review-loop:state-changed', callback as EventCallback);
+    },
+
+    /**
+     * Subscribe to review completed events
+     * Emitted when self-review or PR review analysis completes
+     */
+    onReviewCompleted: (callback: (event: ReviewLoopWebSocketEvent) => void): (() => void) => {
+      return this.subscribeToEvent('review-loop:review-completed', callback as EventCallback);
+    },
+
+    /**
+     * Subscribe to refinement started events
+     * Emitted when code refinement begins to address review issues
+     */
+    onRefinementStarted: (callback: (event: ReviewLoopWebSocketEvent) => void): (() => void) => {
+      return this.subscribeToEvent('review-loop:refinement-started', callback as EventCallback);
+    },
+
+    /**
+     * Subscribe to refinement completed events
+     * Emitted when refinement finishes with addressed/unaddressed issues
+     */
+    onRefinementCompleted: (callback: (event: ReviewLoopWebSocketEvent) => void): (() => void) => {
+      return this.subscribeToEvent('review-loop:refinement-completed', callback as EventCallback);
+    },
+
+    /**
+     * Subscribe to PR feedback received events
+     * Emitted when new feedback is received from GitHub PR
+     */
+    onPRFeedbackReceived: (callback: (event: ReviewLoopWebSocketEvent) => void): (() => void) => {
+      return this.subscribeToEvent('review-loop:pr-feedback-received', callback as EventCallback);
+    },
+
+    /**
+     * Subscribe to ready for human events
+     * Emitted when code is ready for human review
+     */
+    onReadyForHuman: (callback: (event: ReviewLoopWebSocketEvent) => void): (() => void) => {
+      return this.subscribeToEvent('review-loop:ready-for-human', callback as EventCallback);
+    },
+
+    /**
+     * Subscribe to error events
+     * Emitted when an error occurs during the review loop
+     */
+    onError: (callback: (event: ReviewLoopWebSocketEvent) => void): (() => void) => {
+      return this.subscribeToEvent('review-loop:error', callback as EventCallback);
+    },
+
+    /**
+     * Subscribe to all review loop events
+     * Convenience method to listen for any review loop event type
+     */
+    onEvent: (callback: (event: ReviewLoopWebSocketEvent) => void): (() => void) => {
+      const unsubscribers = [
+        this.subscribeToEvent('review-loop:state-changed', callback as EventCallback),
+        this.subscribeToEvent('review-loop:review-completed', callback as EventCallback),
+        this.subscribeToEvent('review-loop:refinement-started', callback as EventCallback),
+        this.subscribeToEvent('review-loop:refinement-completed', callback as EventCallback),
+        this.subscribeToEvent('review-loop:pr-feedback-received', callback as EventCallback),
+        this.subscribeToEvent('review-loop:ready-for-human', callback as EventCallback),
+        this.subscribeToEvent('review-loop:error', callback as EventCallback),
+      ];
+      return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+    },
   };
 
   // Pipeline API - custom workflow pipeline steps
