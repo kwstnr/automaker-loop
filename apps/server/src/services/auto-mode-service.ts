@@ -63,6 +63,16 @@ import { updateWorktreePRInfo, type WorktreePRInfo } from '../lib/worktree-metad
 const execAsync = promisify(exec);
 
 /**
+ * Check if a branch name is a default/protected branch that should not be used for feature work.
+ * Features should run on isolated branches, not on main/master/develop.
+ */
+function isDefaultBranch(branchName: string | undefined | null): boolean {
+  if (!branchName) return true;
+  const defaultBranches = ['main', 'master', 'develop', 'development', 'dev'];
+  return defaultBranches.includes(branchName.toLowerCase());
+}
+
+/**
  * Generate a valid git branch name from a feature title.
  * Converts to lowercase, replaces spaces/special chars with hyphens,
  * removes consecutive hyphens, and prefixes with "feature/".
@@ -517,8 +527,9 @@ export class AutoModeService {
       let branchName = feature.branchName;
 
       if (useWorktrees) {
-        // Auto-generate branch name if not set
-        if (!branchName) {
+        // Auto-generate branch name if not set or if it's a default branch (main/master/etc)
+        // Features should always run on isolated feature branches for proper PR creation
+        if (isDefaultBranch(branchName)) {
           branchName = generateBranchNameFromTitle(feature.title ?? '', featureId);
           logger.info(`Auto-generated branch name for feature "${featureId}": ${branchName}`);
 
@@ -526,22 +537,28 @@ export class AutoModeService {
           await this.updateFeatureBranchName(projectPath, featureId, branchName);
         }
 
+        // At this point branchName is guaranteed to be set (either it was a non-default branch
+        // or we just generated one above)
+        const finalBranchName = branchName!;
+
         // Try to find existing worktree or create a new one
-        worktreePath = await this.findExistingWorktreeForBranch(projectPath, branchName);
+        worktreePath = await this.findExistingWorktreeForBranch(projectPath, finalBranchName);
 
         if (!worktreePath) {
           // Create the worktree automatically
-          logger.info(`Creating worktree for branch "${branchName}"`);
-          worktreePath = await this.createWorktreeForFeature(projectPath, branchName);
+          logger.info(`Creating worktree for branch "${finalBranchName}"`);
+          worktreePath = await this.createWorktreeForFeature(projectPath, finalBranchName);
 
           if (worktreePath) {
-            logger.info(`Created worktree for branch "${branchName}": ${worktreePath}`);
+            logger.info(`Created worktree for branch "${finalBranchName}": ${worktreePath}`);
           } else {
             // Worktree creation failed - log warning and continue with project path
-            logger.warn(`Failed to create worktree for branch "${branchName}", using project path`);
+            logger.warn(
+              `Failed to create worktree for branch "${finalBranchName}", using project path`
+            );
           }
         } else {
-          logger.info(`Using existing worktree for branch "${branchName}": ${worktreePath}`);
+          logger.info(`Using existing worktree for branch "${finalBranchName}": ${worktreePath}`);
         }
       }
 
@@ -974,8 +991,9 @@ Complete the pipeline step instructions above. Review the previous work and appl
     let branchName = feature?.branchName;
 
     if (useWorktrees) {
-      // Auto-generate branch name if not set
-      if (!branchName) {
+      // Auto-generate branch name if not set or if it's a default branch (main/master/etc)
+      // Features should always run on isolated feature branches for proper PR creation
+      if (isDefaultBranch(branchName)) {
         branchName = generateBranchNameFromTitle(feature?.title ?? '', featureId);
         logger.info(`Auto-generated branch name for feature "${featureId}": ${branchName}`);
 
@@ -983,24 +1001,30 @@ Complete the pipeline step instructions above. Review the previous work and appl
         await this.updateFeatureBranchName(projectPath, featureId, branchName);
       }
 
+      // At this point branchName is guaranteed to be set (either it was a non-default branch
+      // or we just generated one above)
+      const finalBranchName = branchName!;
+
       // Try to find existing worktree or create a new one
-      worktreePath = await this.findExistingWorktreeForBranch(projectPath, branchName);
+      worktreePath = await this.findExistingWorktreeForBranch(projectPath, finalBranchName);
 
       if (!worktreePath) {
         // Create the worktree automatically
-        logger.info(`Creating worktree for branch "${branchName}"`);
-        worktreePath = await this.createWorktreeForFeature(projectPath, branchName);
+        logger.info(`Creating worktree for branch "${finalBranchName}"`);
+        worktreePath = await this.createWorktreeForFeature(projectPath, finalBranchName);
 
         if (worktreePath) {
-          logger.info(`Created worktree for branch "${branchName}": ${worktreePath}`);
+          logger.info(`Created worktree for branch "${finalBranchName}": ${worktreePath}`);
         } else {
-          logger.warn(`Failed to create worktree for branch "${branchName}", using project path`);
+          logger.warn(
+            `Failed to create worktree for branch "${finalBranchName}", using project path`
+          );
         }
       }
 
       if (worktreePath) {
         workDir = worktreePath;
-        logger.info(`Follow-up using worktree for branch "${branchName}": ${workDir}`);
+        logger.info(`Follow-up using worktree for branch "${finalBranchName}": ${workDir}`);
       }
     }
 
