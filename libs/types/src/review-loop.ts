@@ -593,3 +593,152 @@ export type PRFeedbackMonitorEvent =
       error: string;
       stage: 'fetch' | 'parse' | 'analyze';
     };
+
+// ============================================================================
+// Review Loop Analytics Types
+// ============================================================================
+
+/**
+ * Statistics about issues found during the review loop.
+ * Provides a breakdown of issues by category and severity.
+ */
+export interface IssueStatistics {
+  /** Total number of issues found across all iterations */
+  totalIssuesFound: number;
+  /** Issues automatically fixed by the AI agent */
+  issuesAutoFixed: number;
+  /** Issues that required manual intervention or review */
+  issuesRequiringManualReview: number;
+  /** Breakdown of issues by category */
+  byCategory: Record<ReviewIssueCategory, number>;
+  /** Breakdown of issues by severity level */
+  bySeverity: Record<ReviewIssueSeverity, number>;
+}
+
+/**
+ * Metrics for a single iteration of the review loop.
+ * Tracks performance and outcomes of each review cycle.
+ */
+export interface IterationMetrics {
+  /** Iteration number (1-based) */
+  iterationNumber: number;
+  /** Verdict from this iteration's review */
+  verdict: ReviewVerdict;
+  /** Number of issues found in this iteration */
+  issuesFound: number;
+  /** Number of issues fixed from previous iteration */
+  issuesFixed: number;
+  /** Time taken for this iteration in milliseconds */
+  durationMs: number;
+  /** ISO timestamp when this iteration started */
+  startedAt: string;
+  /** ISO timestamp when this iteration completed */
+  completedAt: string;
+}
+
+/**
+ * Metrics for estimating time savings from automated review.
+ * Helps quantify the value of the review loop.
+ */
+export interface TimeSavingsMetrics {
+  /** Estimated hours saved by automatic issue detection */
+  estimatedHoursSavedByDetection: number;
+  /** Estimated hours saved by automatic issue fixing */
+  estimatedHoursSavedByAutoFix: number;
+  /** Total estimated hours saved */
+  totalEstimatedHoursSaved: number;
+  /** Number of issues caught before human review */
+  issuesCaughtBeforeHumanReview: number;
+  /** Number of review iterations completed before human review */
+  iterationsBeforeHumanReview: number;
+}
+
+/**
+ * Comprehensive metrics for a review loop session.
+ * Aggregates all analytics data for tracking and reporting.
+ */
+export interface ReviewLoopMetrics {
+  /** ID of the feature this metrics relates to */
+  featureId: string;
+  /** Total number of iterations performed */
+  totalIterations: number;
+  /** Whether the code passed on the first review attempt */
+  passedOnFirstReview: boolean;
+  /** Final verdict after all iterations */
+  finalVerdict: ReviewVerdict;
+  /** Total time spent in the review loop in milliseconds */
+  totalDurationMs: number;
+  /** ISO timestamp when the review loop started */
+  startedAt: string;
+  /** ISO timestamp when the review loop completed */
+  completedAt: string;
+  /** Metrics for each individual iteration */
+  iterations: IterationMetrics[];
+  /** Aggregated issue statistics */
+  issueStatistics: IssueStatistics;
+  /** Time savings metrics */
+  timeSavings: TimeSavingsMetrics;
+}
+
+/**
+ * Summary of analytics across multiple review loop sessions.
+ * Used for generating reports and dashboards.
+ */
+export interface ReviewLoopAnalyticsSummary {
+  /** Total number of review sessions analyzed */
+  totalSessions: number;
+  /** Number of sessions that passed on first review */
+  sessionsPassedOnFirstReview: number;
+  /** Average number of iterations per session */
+  averageIterations: number;
+  /** Average duration per session in milliseconds */
+  averageDurationMs: number;
+  /** Total issues found across all sessions */
+  totalIssuesFound: number;
+  /** Total issues auto-fixed across all sessions */
+  totalIssuesAutoFixed: number;
+  /** Total estimated hours saved */
+  totalEstimatedHoursSaved: number;
+  /** Breakdown of all issues by category */
+  issuesByCategory: Record<ReviewIssueCategory, number>;
+  /** Breakdown of all issues by severity */
+  issuesBySeverity: Record<ReviewIssueSeverity, number>;
+  /** ISO timestamp when this summary was generated */
+  generatedAt: string;
+}
+
+/**
+ * Default empty issue statistics.
+ */
+export const DEFAULT_ISSUE_STATISTICS: IssueStatistics = {
+  totalIssuesFound: 0,
+  issuesAutoFixed: 0,
+  issuesRequiringManualReview: 0,
+  byCategory: {
+    security: 0,
+    architecture: 0,
+    logic: 0,
+    style: 0,
+    performance: 0,
+    testing: 0,
+    documentation: 0,
+  },
+  bySeverity: {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    suggestion: 0,
+  },
+};
+
+/**
+ * Default time savings metrics.
+ */
+export const DEFAULT_TIME_SAVINGS_METRICS: TimeSavingsMetrics = {
+  estimatedHoursSavedByDetection: 0,
+  estimatedHoursSavedByAutoFix: 0,
+  totalEstimatedHoursSaved: 0,
+  issuesCaughtBeforeHumanReview: 0,
+  iterationsBeforeHumanReview: 0,
+};
