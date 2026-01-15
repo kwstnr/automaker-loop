@@ -78,6 +78,39 @@ export interface ReviewResult {
  */
 export type NotificationChannel = 'github' | 'slack' | 'email';
 
+// ============================================================================
+// Quality Gate Thresholds
+// ============================================================================
+
+/**
+ * Thresholds for quality gate checks during review.
+ * These define minimum standards code must meet before PR creation.
+ */
+export interface QualityGateThresholds {
+  /** Minimum test coverage percentage required (0-100, default: 80) */
+  minTestCoverage: number;
+  /** Maximum cyclomatic complexity allowed per function (default: 10) */
+  maxComplexity: number;
+  /** Maximum code duplication percentage allowed (0-100, default: 5) */
+  maxDuplication: number;
+  /** Issue categories that must have zero issues to pass (default: ['security']) */
+  requiredCategories: ReviewIssueCategory[];
+}
+
+/**
+ * Default quality gate thresholds.
+ */
+export const DEFAULT_QUALITY_GATE_THRESHOLDS: QualityGateThresholds = {
+  minTestCoverage: 80,
+  maxComplexity: 10,
+  maxDuplication: 5,
+  requiredCategories: ['security'],
+};
+
+// ============================================================================
+// Review Loop Configuration
+// ============================================================================
+
 /**
  * Configuration for the review loop system.
  */
@@ -96,6 +129,10 @@ export interface ReviewLoopConfig {
   notifyOnReady: boolean;
   /** Channels to use for notifications */
   notificationChannels: NotificationChannel[];
+  /** Whether to automatically refine code based on review feedback (default: true) */
+  autoRefine: boolean;
+  /** Quality gate thresholds that must be met before PR creation */
+  qualityGate: QualityGateThresholds;
 }
 
 /**
@@ -109,6 +146,8 @@ export const DEFAULT_REVIEW_LOOP_CONFIG: ReviewLoopConfig = {
   severityThreshold: 'medium',
   notifyOnReady: true,
   notificationChannels: ['github'],
+  autoRefine: true,
+  qualityGate: DEFAULT_QUALITY_GATE_THRESHOLDS,
 };
 
 /**
@@ -344,4 +383,111 @@ export type ReviewLoopEvent =
       featureId: string;
       error: string;
       stage: ReviewLoopState;
+    };
+
+/**
+ * Configuration for PR feedback monitoring.
+ */
+export interface PRFeedbackMonitorConfig {
+  /** Whether PR feedback monitoring is enabled */
+  enabled: boolean;
+  /** Polling interval in milliseconds (default: 30000) */
+  pollIntervalMs: number;
+  /** Maximum concurrent PRs to monitor (default: 10) */
+  maxConcurrentPRs: number;
+  /** Whether to notify on new comments */
+  notifyOnNewComments: boolean;
+  /** Whether to notify when review is requested */
+  notifyOnReviewRequested: boolean;
+}
+
+/**
+ * Default configuration for PR feedback monitoring.
+ */
+export const DEFAULT_PR_FEEDBACK_MONITOR_CONFIG: PRFeedbackMonitorConfig = {
+  enabled: true,
+  pollIntervalMs: 30000,
+  maxConcurrentPRs: 10,
+  notifyOnNewComments: true,
+  notifyOnReviewRequested: true,
+};
+
+/**
+ * State of a monitored PR.
+ */
+export interface MonitoredPRState {
+  /** Feature ID associated with this PR */
+  featureId: string;
+  /** PR number on GitHub */
+  prNumber: number;
+  /** URL of the PR */
+  prUrl: string;
+  /** Path to the project */
+  projectPath: string;
+  /** Path to the worktree (if applicable) */
+  worktreePath?: string;
+  /** Branch name */
+  branch: string;
+  /** Last checked timestamp */
+  lastChecked: string;
+  /** Number of comments at last check */
+  lastCommentCount: number;
+  /** Number of reviews at last check */
+  lastReviewCount: number;
+  /** CI/CD checks status */
+  checksStatus: ChecksStatus;
+  /** Whether changes have been requested */
+  requestedChanges: boolean;
+  /** Whether the PR is mergeable */
+  mergeable: boolean;
+  /** Monitoring status */
+  status: 'active' | 'paused' | 'stopped';
+  /** ISO timestamp when monitoring started */
+  startedAt: string;
+}
+
+/**
+ * Events emitted by the PR feedback monitor.
+ */
+export type PRFeedbackMonitorEvent =
+  | {
+      type: 'pr_monitor_started';
+      featureId: string;
+      prNumber: number;
+      prUrl: string;
+    }
+  | {
+      type: 'pr_monitor_new_feedback';
+      featureId: string;
+      prNumber: number;
+      feedback: PRFeedback;
+      newComments: PRComment[];
+      newReviews: PRReview[];
+    }
+  | {
+      type: 'pr_monitor_checks_changed';
+      featureId: string;
+      prNumber: number;
+      oldStatus: ChecksStatus;
+      newStatus: ChecksStatus;
+    }
+  | {
+      type: 'pr_monitor_state_changed';
+      featureId: string;
+      prNumber: number;
+      mergeable: boolean;
+      requestedChanges: boolean;
+    }
+  | {
+      type: 'pr_monitor_stopped';
+      featureId: string;
+      prNumber: number;
+      reason: 'completed' | 'cancelled' | 'error' | 'merged';
+    }
+  | {
+      type: 'pr_monitor_error';
+      featureId: string;
+      prNumber?: number;
+      error: string;
+      stage: 'fetch' | 'parse' | 'analyze';
     };

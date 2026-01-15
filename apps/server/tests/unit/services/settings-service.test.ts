@@ -10,9 +10,11 @@ import {
   SETTINGS_VERSION,
   CREDENTIALS_VERSION,
   PROJECT_SETTINGS_VERSION,
+  DEFAULT_REVIEW_LOOP_CONFIG,
   type GlobalSettings,
   type Credentials,
   type ProjectSettings,
+  type ReviewLoopConfig,
 } from '@/types/settings.js';
 
 describe('settings-service.ts', () => {
@@ -806,5 +808,158 @@ describe('settings-service.ts', () => {
         await fs.rm(readOnlyDir, { recursive: true, force: true });
       }
     );
+  });
+
+  describe('reviewLoop settings', () => {
+    it('should have reviewLoop with correct defaults when no settings file exists', async () => {
+      const settings = await settingsService.getGlobalSettings();
+
+      expect(settings.reviewLoop).toBeDefined();
+      expect(settings.reviewLoop).toEqual(DEFAULT_REVIEW_LOOP_CONFIG);
+      expect(settings.reviewLoop!.enabled).toBe(true);
+      expect(settings.reviewLoop!.maxIterations).toBe(3);
+      expect(settings.reviewLoop!.severityThreshold).toBe('medium');
+      expect(settings.reviewLoop!.autoRefine).toBe(true);
+      expect(settings.reviewLoop!.notificationChannels).toEqual(['github']);
+      expect(settings.reviewLoop!.qualityGate.minTestCoverage).toBe(80);
+      expect(settings.reviewLoop!.qualityGate.maxComplexity).toBe(10);
+      expect(settings.reviewLoop!.qualityGate.maxDuplication).toBe(5);
+      expect(settings.reviewLoop!.qualityGate.requiredCategories).toEqual(['security']);
+    });
+
+    it('should merge reviewLoop with defaults for missing properties', async () => {
+      const partialSettings = {
+        version: SETTINGS_VERSION,
+        theme: 'dark',
+        reviewLoop: {
+          maxIterations: 5,
+          autoRefine: false,
+        },
+      };
+      const settingsPath = path.join(testDataDir, 'settings.json');
+      await fs.writeFile(settingsPath, JSON.stringify(partialSettings, null, 2));
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Updated values
+      expect(settings.reviewLoop!.maxIterations).toBe(5);
+      expect(settings.reviewLoop!.autoRefine).toBe(false);
+      // Default values preserved
+      expect(settings.reviewLoop!.enabled).toBe(true);
+      expect(settings.reviewLoop!.severityThreshold).toBe('medium');
+      expect(settings.reviewLoop!.qualityGate.minTestCoverage).toBe(80);
+    });
+
+    it('should deep merge qualityGate settings', async () => {
+      const partialSettings = {
+        version: SETTINGS_VERSION,
+        theme: 'dark',
+        reviewLoop: {
+          qualityGate: {
+            minTestCoverage: 90,
+          },
+        },
+      };
+      const settingsPath = path.join(testDataDir, 'settings.json');
+      await fs.writeFile(settingsPath, JSON.stringify(partialSettings, null, 2));
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Updated value
+      expect(settings.reviewLoop!.qualityGate.minTestCoverage).toBe(90);
+      // Default values preserved
+      expect(settings.reviewLoop!.qualityGate.maxComplexity).toBe(10);
+      expect(settings.reviewLoop!.qualityGate.maxDuplication).toBe(5);
+      expect(settings.reviewLoop!.qualityGate.requiredCategories).toEqual(['security']);
+    });
+
+    it('should deep merge reviewLoop on update', async () => {
+      // Create initial settings with some reviewLoop config
+      await settingsService.updateGlobalSettings({
+        reviewLoop: {
+          maxIterations: 5,
+          qualityGate: {
+            minTestCoverage: 85,
+          },
+        },
+      } as Partial<GlobalSettings>);
+
+      // Update with different reviewLoop settings
+      await settingsService.updateGlobalSettings({
+        reviewLoop: {
+          enabled: false,
+          qualityGate: {
+            maxComplexity: 15,
+          },
+        },
+      } as Partial<GlobalSettings>);
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Both original and new values should be preserved
+      expect(settings.reviewLoop!.maxIterations).toBe(5);
+      expect(settings.reviewLoop!.enabled).toBe(false);
+      expect(settings.reviewLoop!.qualityGate.minTestCoverage).toBe(85);
+      expect(settings.reviewLoop!.qualityGate.maxComplexity).toBe(15);
+      // Defaults should be preserved
+      expect(settings.reviewLoop!.qualityGate.maxDuplication).toBe(5);
+    });
+
+    it('should preserve reviewLoop settings when updating other settings', async () => {
+      // Set initial reviewLoop config
+      await settingsService.updateGlobalSettings({
+        reviewLoop: {
+          maxIterations: 7,
+          severityThreshold: 'high',
+          qualityGate: {
+            minTestCoverage: 95,
+            requiredCategories: ['security', 'logic'],
+          },
+        },
+      } as Partial<GlobalSettings>);
+
+      // Update unrelated settings
+      await settingsService.updateGlobalSettings({
+        theme: 'light',
+        sidebarOpen: false,
+      });
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // reviewLoop should be unchanged
+      expect(settings.reviewLoop!.maxIterations).toBe(7);
+      expect(settings.reviewLoop!.severityThreshold).toBe('high');
+      expect(settings.reviewLoop!.qualityGate.minTestCoverage).toBe(95);
+      expect(settings.reviewLoop!.qualityGate.requiredCategories).toEqual(['security', 'logic']);
+    });
+
+    it('should persist reviewLoop settings to file', async () => {
+      const reviewLoopConfig: Partial<ReviewLoopConfig> = {
+        enabled: false,
+        maxIterations: 10,
+        notificationChannels: ['github', 'slack', 'email'],
+        qualityGate: {
+          minTestCoverage: 75,
+          maxComplexity: 20,
+          maxDuplication: 10,
+          requiredCategories: ['security', 'architecture'],
+        },
+      };
+
+      await settingsService.updateGlobalSettings({
+        reviewLoop: reviewLoopConfig,
+      } as Partial<GlobalSettings>);
+
+      // Read directly from file
+      const settingsPath = path.join(testDataDir, 'settings.json');
+      const fileContent = await fs.readFile(settingsPath, 'utf-8');
+      const saved = JSON.parse(fileContent);
+
+      expect(saved.reviewLoop.enabled).toBe(false);
+      expect(saved.reviewLoop.maxIterations).toBe(10);
+      expect(saved.reviewLoop.notificationChannels).toContain('slack');
+      expect(saved.reviewLoop.qualityGate.minTestCoverage).toBe(75);
+      expect(saved.reviewLoop.qualityGate.requiredCategories).toContain('architecture');
+    });
   });
 });

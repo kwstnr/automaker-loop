@@ -14,6 +14,8 @@ import { getAllOpencodeModelIds, DEFAULT_OPENCODE_MODEL } from './opencode-model
 import type { PromptCustomization } from './prompts.js';
 import type { CodexSandboxMode, CodexApprovalPolicy } from './codex.js';
 import type { ReasoningEffort } from './provider.js';
+import type { ReviewLoopConfig } from './review-loop.js';
+import { DEFAULT_REVIEW_LOOP_CONFIG } from './review-loop.js';
 
 // Re-export ModelAlias for convenience
 export type { ModelAlias };
@@ -630,6 +632,13 @@ export interface GlobalSettings {
    * Controls whether and how PRs are created when features are completed
    */
   autoPR?: AutoPRSettings;
+
+  // Review Loop Configuration
+  /**
+   * Configuration for the AI review loop system
+   * Controls automatic self-review, refinement iterations, and quality gates
+   */
+  reviewLoop?: ReviewLoopConfig;
 }
 
 /**
@@ -857,6 +866,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   enableSubagents: true,
   subagentsSources: ['user', 'project'],
   autoPR: DEFAULT_AUTO_PR_SETTINGS,
+  reviewLoop: DEFAULT_REVIEW_LOOP_CONFIG,
 };
 
 /** Default credentials (empty strings - user must provide API keys) */

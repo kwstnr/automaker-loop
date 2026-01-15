@@ -29,6 +29,7 @@ import type {
   WorktreeInfo,
   PhaseModelConfig,
   PhaseModelEntry,
+  ReviewLoopConfig,
 } from '../types/settings.js';
 import {
   DEFAULT_GLOBAL_SETTINGS,
@@ -38,6 +39,7 @@ import {
   SETTINGS_VERSION,
   CREDENTIALS_VERSION,
   PROJECT_SETTINGS_VERSION,
+  DEFAULT_REVIEW_LOOP_CONFIG,
 } from '../types/settings.js';
 
 const logger = createLogger('SettingsService');
@@ -147,6 +149,16 @@ export class SettingsService {
         ...settings.keyboardShortcuts,
       },
       phaseModels: migratedPhaseModels,
+      // Deep merge reviewLoop with defaults
+      reviewLoop: {
+        ...DEFAULT_REVIEW_LOOP_CONFIG,
+        ...settings.reviewLoop,
+        // Deep merge qualityGate if it exists
+        qualityGate: {
+          ...DEFAULT_REVIEW_LOOP_CONFIG.qualityGate,
+          ...(settings.reviewLoop?.qualityGate || {}),
+        },
+      },
     };
 
     // Version-based migrations
@@ -339,6 +351,21 @@ export class SettingsService {
       updated.phaseModels = {
         ...current.phaseModels,
         ...sanitizedUpdates.phaseModels,
+      };
+    }
+
+    // Deep merge reviewLoop if provided
+    if (sanitizedUpdates.reviewLoop) {
+      updated.reviewLoop = {
+        ...DEFAULT_REVIEW_LOOP_CONFIG,
+        ...current.reviewLoop,
+        ...sanitizedUpdates.reviewLoop,
+        // Deep merge qualityGate if it exists
+        qualityGate: {
+          ...DEFAULT_REVIEW_LOOP_CONFIG.qualityGate,
+          ...(current.reviewLoop?.qualityGate || {}),
+          ...(sanitizedUpdates.reviewLoop.qualityGate || {}),
+        },
       };
     }
 

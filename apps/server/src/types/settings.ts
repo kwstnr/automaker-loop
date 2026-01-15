@@ -26,6 +26,8 @@ export type {
   PhaseModelKey,
   PhaseModelEntry,
   AutoPRSettings,
+  ReviewLoopConfig,
+  QualityGateThresholds,
 } from '@automaker/types';
 
 export {
@@ -38,4 +40,6 @@ export {
   SETTINGS_VERSION,
   CREDENTIALS_VERSION,
   PROJECT_SETTINGS_VERSION,
+  DEFAULT_REVIEW_LOOP_CONFIG,
+  DEFAULT_QUALITY_GATE_THRESHOLDS,
 } from '@automaker/types';
