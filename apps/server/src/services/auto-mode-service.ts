@@ -55,10 +55,40 @@ import {
   execEnv,
   isValidBranchName,
   isGhCliAvailable,
+  ensureInitialCommit,
+  isGitRepo,
 } from '../routes/worktree/common.js';
 import { updateWorktreePRInfo, type WorktreePRInfo } from '../lib/worktree-metadata.js';
 
 const execAsync = promisify(exec);
+
+/**
+ * Generate a valid git branch name from a feature title.
+ * Converts to lowercase, replaces spaces/special chars with hyphens,
+ * removes consecutive hyphens, and prefixes with "feature/".
+ */
+function generateBranchNameFromTitle(title: string, featureId: string): string {
+  // Start with the title
+  let branchName = title
+    .toLowerCase()
+    // Replace spaces and underscores with hyphens
+    .replace(/[\s_]+/g, '-')
+    // Remove any characters that aren't valid in branch names
+    .replace(/[^a-z0-9-]/g, '')
+    // Remove consecutive hyphens
+    .replace(/-+/g, '-')
+    // Remove leading/trailing hyphens
+    .replace(/^-|-$/g, '')
+    // Limit length (git has max 250 chars, leave room for prefix)
+    .substring(0, 100);
+
+  // If the title produced nothing usable, fall back to feature ID
+  if (!branchName || branchName.length < 3) {
+    branchName = featureId;
+  }
+
+  return `feature/${branchName}`;
+}
 
 // PlanningMode type is imported from @automaker/types
 
@@ -482,20 +512,36 @@ export class AutoModeService {
       }
 
       // Derive workDir from feature.branchName
-      // Worktrees should already be created when the feature is added/edited
+      // If useWorktrees is enabled but no branchName exists, auto-generate one from the feature title
       let worktreePath: string | null = null;
-      const branchName = feature.branchName;
+      let branchName = feature.branchName;
 
-      if (useWorktrees && branchName) {
-        // Try to find existing worktree for this branch
-        // Worktree should already exist (created when feature was added/edited)
+      if (useWorktrees) {
+        // Auto-generate branch name if not set
+        if (!branchName) {
+          branchName = generateBranchNameFromTitle(feature.title ?? '', featureId);
+          logger.info(`Auto-generated branch name for feature "${featureId}": ${branchName}`);
+
+          // Update feature with the generated branchName
+          await this.updateFeatureBranchName(projectPath, featureId, branchName);
+        }
+
+        // Try to find existing worktree or create a new one
         worktreePath = await this.findExistingWorktreeForBranch(projectPath, branchName);
 
-        if (worktreePath) {
-          logger.info(`Using worktree for branch "${branchName}": ${worktreePath}`);
+        if (!worktreePath) {
+          // Create the worktree automatically
+          logger.info(`Creating worktree for branch "${branchName}"`);
+          worktreePath = await this.createWorktreeForFeature(projectPath, branchName);
+
+          if (worktreePath) {
+            logger.info(`Created worktree for branch "${branchName}": ${worktreePath}`);
+          } else {
+            // Worktree creation failed - log warning and continue with project path
+            logger.warn(`Failed to create worktree for branch "${branchName}", using project path`);
+          }
         } else {
-          // Worktree doesn't exist - log warning and continue with project path
-          logger.warn(`Worktree for branch "${branchName}" not found, using project path`);
+          logger.info(`Using existing worktree for branch "${branchName}": ${worktreePath}`);
         }
       }
 
@@ -922,14 +968,35 @@ Complete the pipeline step instructions above. Review the previous work and appl
     const feature = await this.loadFeature(projectPath, featureId);
 
     // Derive workDir from feature.branchName
-    // If no branchName, derive from feature ID: feature/{featureId}
+    // If useWorktrees is enabled but no branchName exists, auto-generate one from the feature title
     let workDir = path.resolve(projectPath);
     let worktreePath: string | null = null;
-    const branchName = feature?.branchName || `feature/${featureId}`;
+    let branchName = feature?.branchName;
 
-    if (useWorktrees && branchName) {
-      // Try to find existing worktree for this branch
+    if (useWorktrees) {
+      // Auto-generate branch name if not set
+      if (!branchName) {
+        branchName = generateBranchNameFromTitle(feature?.title ?? '', featureId);
+        logger.info(`Auto-generated branch name for feature "${featureId}": ${branchName}`);
+
+        // Update feature with the generated branchName
+        await this.updateFeatureBranchName(projectPath, featureId, branchName);
+      }
+
+      // Try to find existing worktree or create a new one
       worktreePath = await this.findExistingWorktreeForBranch(projectPath, branchName);
+
+      if (!worktreePath) {
+        // Create the worktree automatically
+        logger.info(`Creating worktree for branch "${branchName}"`);
+        worktreePath = await this.createWorktreeForFeature(projectPath, branchName);
+
+        if (worktreePath) {
+          logger.info(`Created worktree for branch "${branchName}": ${worktreePath}`);
+        } else {
+          logger.warn(`Failed to create worktree for branch "${branchName}", using project path`);
+        }
+      }
 
       if (worktreePath) {
         workDir = worktreePath;
@@ -999,7 +1066,7 @@ Address the follow-up instructions above. Review the previous work and make the 
       featureId,
       projectPath,
       worktreePath,
-      branchName,
+      branchName: branchName ?? null,
       abortController,
       isAutoMode: false,
       startTime: Date.now(),
@@ -1561,8 +1628,7 @@ Address the follow-up instructions above. Review the previous work and make the 
         `Auto PR ${prAlreadyExisted ? 'found' : 'created'} for feature ${featureId}: ${prUrl}`
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error during auto PR';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during auto PR';
       logger.error(`Auto PR failed for ${featureId}:`, error);
       this.emitAutoModeEvent('auto-mode:pr-failed', {
         featureId,
@@ -2004,6 +2070,71 @@ Format your response as a structured markdown document.`;
     }
   }
 
+  /**
+   * Create a worktree for a feature branch.
+   * If the worktree already exists, returns the existing path.
+   * @returns The worktree path, or null if creation failed
+   */
+  private async createWorktreeForFeature(
+    projectPath: string,
+    branchName: string
+  ): Promise<string | null> {
+    try {
+      // First check if git repo
+      if (!(await isGitRepo(projectPath))) {
+        logger.error(`Not a git repository: ${projectPath}`);
+        return null;
+      }
+
+      // Ensure at least one commit exists
+      await ensureInitialCommit(projectPath);
+
+      // Check if worktree already exists
+      const existingWorktree = await this.findExistingWorktreeForBranch(projectPath, branchName);
+      if (existingWorktree) {
+        logger.info(`Found existing worktree for branch "${branchName}" at: ${existingWorktree}`);
+        return existingWorktree;
+      }
+
+      // Sanitize branch name for directory usage
+      const sanitizedName = branchName.replace(/[^a-zA-Z0-9_-]/g, '-');
+      const worktreesDir = path.join(projectPath, '.worktrees');
+      const worktreePath = path.join(worktreesDir, sanitizedName);
+
+      // Create worktrees directory if it doesn't exist
+      await secureFs.mkdir(worktreesDir, { recursive: true });
+
+      // Check if branch exists
+      let branchExists = false;
+      try {
+        await execAsync(`git rev-parse --verify ${branchName}`, {
+          cwd: projectPath,
+        });
+        branchExists = true;
+      } catch {
+        // Branch doesn't exist
+      }
+
+      // Create worktree
+      let createCmd: string;
+      if (branchExists) {
+        createCmd = `git worktree add "${worktreePath}" ${branchName}`;
+      } else {
+        // Create new branch from HEAD
+        createCmd = `git worktree add -b ${branchName} "${worktreePath}" HEAD`;
+      }
+
+      await execAsync(createCmd, { cwd: projectPath });
+      logger.info(`Created worktree for branch "${branchName}" at: ${worktreePath}`);
+
+      // Return absolute path
+      return path.resolve(worktreePath);
+    } catch (error) {
+      logger.error(`Failed to create worktree for branch "${branchName}":`, error);
+      return null;
+    }
+  }
+
   private async loadFeature(projectPath: string, featureId: string): Promise<Feature | null> {
     // Features are stored in .automaker directory
     const featureDir = getFeatureDir(projectPath, featureId);
@@ -2042,6 +2173,29 @@ Format your response as a structured markdown document.`;
       await secureFs.writeFile(featurePath, JSON.stringify(feature, null, 2));
     } catch {
       // Feature file may not exist
+    }
+  }
+
+  /**
+   * Update the branchName of a feature
+   */
+  private async updateFeatureBranchName(
+    projectPath: string,
+    featureId: string,
+    branchName: string
+  ): Promise<void> {
+    const featureDir = getFeatureDir(projectPath, featureId);
+    const featurePath = path.join(featureDir, 'feature.json');
+
+    try {
+      const data = (await secureFs.readFile(featurePath, 'utf-8')) as string;
+      const feature = JSON.parse(data);
+      feature.branchName = branchName;
+      feature.updatedAt = new Date().toISOString();
+      await secureFs.writeFile(featurePath, JSON.stringify(feature, null, 2));
+      logger.info(`Updated feature ${featureId} with branchName: ${branchName}`);
+    } catch (error) {
+      logger.error(`Failed to update feature branchName for ${featureId}:`, error);
     }
   }
 
