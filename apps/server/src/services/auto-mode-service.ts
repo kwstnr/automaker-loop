@@ -51,6 +51,12 @@ import {
   getMCPServersFromSettings,
   getPromptCustomization,
 } from '../lib/settings-helpers.js';
+import {
+  execEnv,
+  isValidBranchName,
+  isGhCliAvailable,
+} from '../routes/worktree/common.js';
+import { updateWorktreePRInfo, type WorktreePRInfo } from '../lib/worktree-metadata.js';
 
 const execAsync = promisify(exec);
 
@@ -1273,10 +1279,296 @@ Address the follow-up instructions above. Review the previous work and make the 
         message: `Changes committed: ${hash.trim().substring(0, 8)}`,
       });
 
+      // Trigger auto PR creation if enabled (runs in background, doesn't block)
+      this.autoPushAndCreatePR(projectPath, featureId, workDir, feature ?? undefined).catch(
+        (error) => {
+          // Log but don't fail the commit
+          logger.warn(`Auto PR failed for ${featureId}:`, error);
+        }
+      );
+
       return hash.trim();
     } catch (error) {
       logger.error(`Commit failed for ${featureId}:`, error);
       return null;
+    }
+  }
+
+  /**
+   * Automatically push the branch and create a PR if autoPR is enabled in settings.
+   * This is called after commitFeature() completes successfully.
+   * Handles errors gracefully without blocking feature completion.
+   *
+   * @param projectPath - The main project path
+   * @param featureId - The feature ID
+   * @param workDir - The worktree or project path where the changes were committed
+   * @param feature - Optional feature data for PR title/body
+   */
+  private async autoPushAndCreatePR(
+    projectPath: string,
+    featureId: string,
+    workDir: string,
+    feature?: Feature
+  ): Promise<void> {
+    try {
+      // Check if autoPR is enabled in settings
+      const settings = await this.settingsService?.getGlobalSettings();
+      if (!settings?.autoPR?.enabled) {
+        logger.debug(`Auto PR is disabled, skipping for feature ${featureId}`);
+        return;
+      }
+
+      logger.info(`Auto PR enabled, pushing and creating PR for feature ${featureId}`);
+
+      // Get the current branch name
+      const { stdout: branchOutput } = await execAsync('git rev-parse --abbrev-ref HEAD', {
+        cwd: workDir,
+        env: execEnv,
+      });
+      const branchName = branchOutput.trim();
+
+      // Validate branch name for security
+      if (!isValidBranchName(branchName)) {
+        logger.error(`Invalid branch name: ${branchName}`);
+        this.emitAutoModeEvent('auto-mode:pr-failed', {
+          featureId,
+          projectPath,
+          error: 'Invalid branch name contains unsafe characters',
+        });
+        return;
+      }
+
+      // Push the branch to remote
+      logger.info(`Pushing branch ${branchName} to origin`);
+      try {
+        await execAsync(`git push -u origin ${branchName}`, {
+          cwd: workDir,
+          env: execEnv,
+        });
+      } catch {
+        // Try with --set-upstream flag
+        try {
+          await execAsync(`git push --set-upstream origin ${branchName}`, {
+            cwd: workDir,
+            env: execEnv,
+          });
+        } catch (pushError: unknown) {
+          const err = pushError as { stderr?: string; message?: string };
+          const errorMessage = err.stderr || err.message || 'Push failed';
+          logger.error(`Push failed for ${featureId}:`, errorMessage);
+          this.emitAutoModeEvent('auto-mode:pr-failed', {
+            featureId,
+            projectPath,
+            error: `Failed to push branch: ${errorMessage}`,
+            stage: 'push',
+          });
+          return;
+        }
+      }
+
+      // Check if gh CLI is available
+      const ghCliAvailable = await isGhCliAvailable();
+      if (!ghCliAvailable) {
+        logger.warn('gh CLI not available, cannot create PR automatically');
+        this.emitAutoModeEvent('auto-mode:pr-failed', {
+          featureId,
+          projectPath,
+          error: 'gh CLI not available. Install GitHub CLI to enable automatic PR creation.',
+          stage: 'gh_check',
+        });
+        return;
+      }
+
+      // Get repository info and detect fork workflow
+      let upstreamRepo: string | null = null;
+      let originOwner: string | null = null;
+      try {
+        const { stdout: remotes } = await execAsync('git remote -v', {
+          cwd: workDir,
+          env: execEnv,
+        });
+
+        const lines = remotes.split(/\r?\n/);
+        for (const line of lines) {
+          let match = line.match(/^(\w+)\s+.*[:/]([^/]+)\/([^/\s]+?)(?:\.git)?\s+\(fetch\)/);
+          if (!match) {
+            match = line.match(/^(\w+)\s+git@[^:]+:([^/]+)\/([^\s]+?)(?:\.git)?\s+\(fetch\)/);
+          }
+          if (!match) {
+            match = line.match(
+              /^(\w+)\s+https?:\/\/[^/]+\/([^/]+)\/([^\s]+?)(?:\.git)?\s+\(fetch\)/
+            );
+          }
+
+          if (match) {
+            const [, remoteName, owner] = match;
+            if (remoteName === 'upstream') {
+              upstreamRepo = `${owner}/${match[3]}`;
+            } else if (remoteName === 'origin') {
+              originOwner = owner;
+            }
+          }
+        }
+      } catch {
+        // Continue without fork detection
+      }
+
+      // Build PR title and body
+      const baseBranch = settings.autoPR.baseBranch || 'main';
+      let prTitle = settings.autoPR.prTitleTemplate || '{{featureName}}';
+      prTitle = prTitle
+        .replace(/\{\{featureName\}\}/g, feature?.title || `Feature ${featureId}`)
+        .replace(/\{\{featureId\}\}/g, featureId);
+
+      const prBody = feature?.description
+        ? `## Feature\n\n${feature.description}\n\n---\n*Created automatically by Automaker*`
+        : `Automatically created PR for feature ${featureId}\n\n---\n*Created automatically by Automaker*`;
+
+      const draftFlag = settings.autoPR.createAsDraft ? '--draft' : '';
+
+      // Check if PR already exists for this branch
+      const headRef = upstreamRepo && originOwner ? `${originOwner}:${branchName}` : branchName;
+      const repoArg = upstreamRepo ? ` --repo "${upstreamRepo}"` : '';
+
+      let prUrl: string | null = null;
+      let prNumber: number | undefined;
+      let prAlreadyExisted = false;
+
+      try {
+        const listCmd = `gh pr list${repoArg} --head "${headRef}" --json number,title,url,state --limit 1`;
+        const { stdout: existingPrOutput } = await execAsync(listCmd, {
+          cwd: workDir,
+          env: execEnv,
+        });
+
+        const existingPrs = JSON.parse(existingPrOutput);
+        if (Array.isArray(existingPrs) && existingPrs.length > 0) {
+          const existingPr = existingPrs[0];
+          logger.info(`PR already exists for branch ${branchName}: PR #${existingPr.number}`);
+          prUrl = existingPr.url;
+          prNumber = existingPr.number;
+          prAlreadyExisted = true;
+
+          // Store the existing PR info in metadata
+          await updateWorktreePRInfo(projectPath, branchName, {
+            number: existingPr.number,
+            url: existingPr.url,
+            title: existingPr.title || prTitle,
+            state: existingPr.state || 'open',
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } catch {
+        // No existing PR, will create one
+      }
+
+      // Create new PR if one doesn't exist
+      if (!prUrl) {
+        try {
+          let prCmd = `gh pr create --base "${baseBranch}"`;
+
+          if (upstreamRepo && originOwner) {
+            prCmd += ` --repo "${upstreamRepo}" --head "${originOwner}:${branchName}"`;
+          } else {
+            prCmd += ` --head "${branchName}"`;
+          }
+
+          prCmd += ` --title "${prTitle.replace(/"/g, '\\"')}" --body "${prBody.replace(/"/g, '\\"')}" ${draftFlag}`;
+          prCmd = prCmd.trim();
+
+          logger.debug(`Creating PR with command: ${prCmd}`);
+          const { stdout: prOutput } = await execAsync(prCmd, {
+            cwd: workDir,
+            env: execEnv,
+          });
+          prUrl = prOutput.trim();
+          logger.info(`PR created: ${prUrl}`);
+
+          // Extract PR number and store metadata
+          if (prUrl) {
+            const prMatch = prUrl.match(/\/pull\/(\d+)/);
+            prNumber = prMatch ? parseInt(prMatch[1], 10) : undefined;
+
+            if (prNumber) {
+              await updateWorktreePRInfo(projectPath, branchName, {
+                number: prNumber,
+                url: prUrl,
+                title: prTitle,
+                state: settings.autoPR.createAsDraft ? 'draft' : 'open',
+                createdAt: new Date().toISOString(),
+              });
+            }
+          }
+        } catch (ghError: unknown) {
+          const err = ghError as { stderr?: string; message?: string };
+          const errorMessage = err.stderr || err.message || 'PR creation failed';
+
+          // Check if it's "already exists" error
+          if (errorMessage.toLowerCase().includes('already exists')) {
+            try {
+              const { stdout: viewOutput } = await execAsync(
+                `gh pr view --json number,title,url,state`,
+                { cwd: workDir, env: execEnv }
+              );
+              const existingPr = JSON.parse(viewOutput);
+              if (existingPr.url) {
+                prUrl = existingPr.url;
+                prNumber = existingPr.number;
+                prAlreadyExisted = true;
+
+                await updateWorktreePRInfo(projectPath, branchName, {
+                  number: existingPr.number,
+                  url: existingPr.url,
+                  title: existingPr.title || prTitle,
+                  state: existingPr.state || 'open',
+                  createdAt: new Date().toISOString(),
+                });
+              }
+            } catch {
+              logger.error(`Failed to fetch existing PR: ${errorMessage}`);
+              this.emitAutoModeEvent('auto-mode:pr-failed', {
+                featureId,
+                projectPath,
+                error: errorMessage,
+                stage: 'create',
+              });
+              return;
+            }
+          } else {
+            logger.error(`PR creation failed for ${featureId}:`, errorMessage);
+            this.emitAutoModeEvent('auto-mode:pr-failed', {
+              featureId,
+              projectPath,
+              error: errorMessage,
+              stage: 'create',
+            });
+            return;
+          }
+        }
+      }
+
+      // Emit success event
+      this.emitAutoModeEvent('auto-mode:pr-created', {
+        featureId,
+        projectPath,
+        prUrl,
+        prNumber,
+        prAlreadyExisted,
+        branchName,
+      });
+
+      logger.info(
+        `Auto PR ${prAlreadyExisted ? 'found' : 'created'} for feature ${featureId}: ${prUrl}`
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error during auto PR';
+      logger.error(`Auto PR failed for ${featureId}:`, error);
+      this.emitAutoModeEvent('auto-mode:pr-failed', {
+        featureId,
+        projectPath,
+        error: errorMessage,
+      });
     }
   }
 
