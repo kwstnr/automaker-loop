@@ -14,17 +14,20 @@ import type {
   AgentPrompts,
   BacklogPlanPrompts,
   EnhancementPrompts,
+  ReviewLoopPrompts,
   CustomPrompt,
   ResolvedAutoModePrompts,
   ResolvedAgentPrompts,
   ResolvedBacklogPlanPrompts,
   ResolvedEnhancementPrompts,
+  ResolvedReviewLoopPrompts,
 } from '@automaker/types';
 import {
   DEFAULT_AUTO_MODE_PROMPTS,
   DEFAULT_AGENT_PROMPTS,
   DEFAULT_BACKLOG_PLAN_PROMPTS,
   DEFAULT_ENHANCEMENT_PROMPTS,
+  DEFAULT_REVIEW_LOOP_PROMPTS,
 } from './defaults.js';
 
 /**
@@ -117,6 +120,39 @@ export function mergeEnhancementPrompts(custom?: EnhancementPrompts): ResolvedEn
 }
 
 /**
+ * Merge custom Review Loop prompts with defaults
+ * Custom prompts override defaults only when enabled=true
+ */
+export function mergeReviewLoopPrompts(custom?: ReviewLoopPrompts): ResolvedReviewLoopPrompts {
+  return {
+    selfReviewerSystemPrompt: resolvePrompt(
+      custom?.selfReviewerSystemPrompt,
+      DEFAULT_REVIEW_LOOP_PROMPTS.selfReviewerSystemPrompt
+    ),
+    feedbackFixerSystemPrompt: resolvePrompt(
+      custom?.feedbackFixerSystemPrompt,
+      DEFAULT_REVIEW_LOOP_PROMPTS.feedbackFixerSystemPrompt
+    ),
+    feedbackFixerUserPromptTemplate: resolvePrompt(
+      custom?.feedbackFixerUserPromptTemplate,
+      DEFAULT_REVIEW_LOOP_PROMPTS.feedbackFixerUserPromptTemplate
+    ),
+    prFeedbackFixerSystemPrompt: resolvePrompt(
+      custom?.prFeedbackFixerSystemPrompt,
+      DEFAULT_REVIEW_LOOP_PROMPTS.prFeedbackFixerSystemPrompt
+    ),
+    prFeedbackFixerUserPromptTemplate: resolvePrompt(
+      custom?.prFeedbackFixerUserPromptTemplate,
+      DEFAULT_REVIEW_LOOP_PROMPTS.prFeedbackFixerUserPromptTemplate
+    ),
+    feedbackFixerSummaryPrompt: resolvePrompt(
+      custom?.feedbackFixerSummaryPrompt,
+      DEFAULT_REVIEW_LOOP_PROMPTS.feedbackFixerSummaryPrompt
+    ),
+  };
+}
+
+/**
  * Merge all custom prompts with defaults
  * Returns a complete PromptCustomization with all fields populated
  */
@@ -126,5 +162,6 @@ export function mergeAllPrompts(custom?: PromptCustomization) {
     agent: mergeAgentPrompts(custom?.agent),
     backlogPlan: mergeBacklogPlanPrompts(custom?.backlogPlan),
     enhancement: mergeEnhancementPrompts(custom?.enhancement),
+    reviewLoop: mergeReviewLoopPrompts(custom?.reviewLoop),
   };
 }

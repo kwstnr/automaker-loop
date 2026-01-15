@@ -39,6 +39,18 @@ export {
 } from './feedback-fixer.js';
 export type { FeedbackFixerExample, FeedbackFixerConfig } from './feedback-fixer.js';
 
+// Self-reviewer prompts (Review Loop)
+export {
+  SELF_REVIEWER_SYSTEM_PROMPT,
+  SELF_REVIEWER_USER_PROMPT_TEMPLATE,
+  SELF_REVIEWER_QUICK_PROMPT,
+  SELF_REVIEW_EXAMPLE_OUTPUT,
+  DEFAULT_SELF_REVIEWER_CONFIG,
+  getSelfReviewerPrompt,
+  generateIssueId,
+} from './self-reviewer.js';
+export type { SelfReviewerConfig } from './self-reviewer.js';
+
 // Re-export types from @automaker/types
 export type { EnhancementMode, EnhancementExample } from '@automaker/types';
 
@@ -69,6 +81,7 @@ export {
   mergeAgentPrompts,
   mergeBacklogPlanPrompts,
   mergeEnhancementPrompts,
+  mergeReviewLoopPrompts,
   mergeAllPrompts,
 } from './merge.js';
 

@@ -109,6 +109,9 @@ export interface PromptCustomization {
 
   /** Enhancement prompts (feature description improvement) */
   enhancement?: EnhancementPrompts;
+
+  /** Review Loop prompts (self-review and feedback handling) */
+  reviewLoop?: ReviewLoopPrompts;
 }
 
 /**
@@ -119,6 +122,7 @@ export const DEFAULT_PROMPT_CUSTOMIZATION: PromptCustomization = {
   agent: {},
   backlogPlan: {},
   enhancement: {},
+  reviewLoop: {},
 };
 
 /**
@@ -158,6 +162,9 @@ export interface ResolvedEnhancementPrompts {
  * Controls how the AI reviews code changes and addresses feedback.
  */
 export interface ReviewLoopPrompts {
+  /** System prompt for self-review of code changes before PR creation */
+  selfReviewerSystemPrompt?: CustomPrompt;
+
   /** System prompt for addressing review feedback and fixing issues */
   feedbackFixerSystemPrompt?: CustomPrompt;
 
@@ -178,6 +185,7 @@ export interface ReviewLoopPrompts {
  * ResolvedReviewLoopPrompts - All fields resolved to string values
  */
 export interface ResolvedReviewLoopPrompts {
+  selfReviewerSystemPrompt: string;
   feedbackFixerSystemPrompt: string;
   feedbackFixerUserPromptTemplate: string;
   prFeedbackFixerSystemPrompt: string;

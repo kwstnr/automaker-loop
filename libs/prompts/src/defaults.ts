@@ -442,10 +442,13 @@ import {
   FEEDBACK_FIXER_SUMMARY_PROMPT,
 } from './feedback-fixer.js';
 
+import { SELF_REVIEWER_SYSTEM_PROMPT } from './self-reviewer.js';
+
 /**
- * Default Review Loop prompts (for feedback-fixer agent)
+ * Default Review Loop prompts (for self-reviewer and feedback-fixer agents)
  */
 export const DEFAULT_REVIEW_LOOP_PROMPTS: ResolvedReviewLoopPrompts = {
+  selfReviewerSystemPrompt: SELF_REVIEWER_SYSTEM_PROMPT,
   feedbackFixerSystemPrompt: FEEDBACK_FIXER_SYSTEM_PROMPT,
   feedbackFixerUserPromptTemplate: FEEDBACK_FIXER_USER_PROMPT_TEMPLATE,
   prFeedbackFixerSystemPrompt: PR_FEEDBACK_FIXER_SYSTEM_PROMPT,
