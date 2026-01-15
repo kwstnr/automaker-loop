@@ -108,6 +108,108 @@ export const DEFAULT_QUALITY_GATE_THRESHOLDS: QualityGateThresholds = {
 };
 
 // ============================================================================
+// Quality Gate Evaluation Results
+// ============================================================================
+
+/**
+ * Status of a quality gate check.
+ * - 'passed': The check passed all thresholds
+ * - 'failed': The check failed one or more thresholds
+ * - 'skipped': The check was skipped (e.g., no data available)
+ */
+export type QualityGateCheckStatus = 'passed' | 'failed' | 'skipped';
+
+/**
+ * Result of an individual quality gate check.
+ */
+export interface QualityGateCheckResult {
+  /** Name of the check */
+  name: string;
+  /** Status of the check */
+  status: QualityGateCheckStatus;
+  /** Human-readable message explaining the result */
+  message: string;
+  /** Current value (if applicable) */
+  currentValue?: number;
+  /** Threshold value (if applicable) */
+  threshold?: number;
+  /** Details about issues that caused failure (if applicable) */
+  details?: string[];
+}
+
+/**
+ * Summary of issue counts by severity.
+ */
+export interface IssueSeverityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  suggestion: number;
+}
+
+/**
+ * Summary of issue counts by category.
+ */
+export interface IssueCategoryCounts {
+  security: number;
+  architecture: number;
+  logic: number;
+  style: number;
+  performance: number;
+  testing: number;
+  documentation: number;
+}
+
+/**
+ * Overall verdict of quality gate evaluation.
+ * - 'passed': All quality gates passed, PR can be created
+ * - 'failed': One or more quality gates failed, PR should be blocked
+ * - 'warning': Some checks have warnings but PR can proceed
+ */
+export type QualityGateVerdict = 'passed' | 'failed' | 'warning';
+
+/**
+ * Complete result of quality gate evaluation.
+ */
+export interface QualityGateEvaluationResult {
+  /** Overall verdict of the evaluation */
+  verdict: QualityGateVerdict;
+  /** Whether PR creation should be blocked */
+  shouldBlockPR: boolean;
+  /** Human-readable summary of the evaluation */
+  summary: string;
+  /** Results of individual checks */
+  checks: QualityGateCheckResult[];
+  /** Count of issues by severity level */
+  severityCounts: IssueSeverityCounts;
+  /** Count of issues by category */
+  categoryCounts: IssueCategoryCounts;
+  /** Total number of issues evaluated */
+  totalIssues: number;
+  /** Timestamp of the evaluation */
+  evaluatedAt: string;
+}
+
+/**
+ * Input for quality gate evaluation.
+ */
+export interface QualityGateEvaluationInput {
+  /** Issues from the review to evaluate */
+  issues: ReviewIssue[];
+  /** Thresholds to evaluate against */
+  thresholds: QualityGateThresholds;
+  /** Severity threshold from review loop config - issues at or above this block PR */
+  severityThreshold: ReviewIssueSeverity;
+  /** Optional test coverage percentage (0-100) */
+  testCoverage?: number;
+  /** Optional cyclomatic complexity values by function */
+  complexityByFunction?: Record<string, number>;
+  /** Optional code duplication percentage (0-100) */
+  duplicationPercentage?: number;
+}
+
+// ============================================================================
 // Review Loop Configuration
 // ============================================================================
 
