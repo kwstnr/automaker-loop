@@ -35,7 +35,6 @@ import { getFeatureDir, getAutomakerDir, getFeaturesDir } from '@automaker/platf
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import os from 'os';
 import * as secureFs from '../lib/secure-fs.js';
 import type { EventEmitter } from '../lib/events.js';
 import {
@@ -1610,7 +1609,9 @@ Address the follow-up instructions above. Review the previous work and make the 
       // Create new PR if one doesn't exist
       if (!prUrl) {
         // Create temp file for PR body to handle multi-line content properly
-        const tempBodyFile = path.join(os.tmpdir(), `automaker-pr-body-${Date.now()}.md`);
+        // Use .automaker directory instead of /tmp to stay within ALLOWED_ROOT_DIRECTORY
+        const automakerDir = getAutomakerDir(projectPath);
+        const tempBodyFile = path.join(automakerDir, `pr-body-${Date.now()}.md`);
         let tempFileCreated = false;
         try {
           // Write body to temp file to avoid shell escaping issues with multi-line content
