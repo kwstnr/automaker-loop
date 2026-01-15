@@ -600,16 +600,31 @@ export class AutoModeService {
       // Note: contextResult.formattedPrompt now includes both context AND memory
       const combinedSystemPrompt = filterClaudeMdFromContext(contextResult, autoLoadClaudeMd);
 
+      // Build working directory context to ensure agent uses correct paths
+      // This is critical when using worktrees - the agent must use paths relative to workDir
+      const workDirContext = `## Working Directory
+
+**IMPORTANT:** You are working in the following directory:
+\`\`\`
+${workDir}
+\`\`\`
+
+All file operations (Read, Write, Edit, Glob, Grep) must use paths within this directory.
+When exploring the codebase, use this directory as your base path.
+Do NOT use paths like \`/projects/automaker-loop/...\` directly - always use paths starting with \`${workDir}\`.
+
+`;
+
       if (options?.continuationPrompt) {
         // Continuation prompt is used when recovering from a plan approval
         // The plan was already approved, so skip the planning phase
-        prompt = options.continuationPrompt;
+        prompt = workDirContext + options.continuationPrompt;
         logger.info(`Using continuation prompt for feature ${featureId}`);
       } else {
         // Normal flow: build prompt with planning phase
         const featurePrompt = this.buildFeaturePrompt(feature);
         const planningPrefix = await this.getPlanningPromptPrefix(feature);
-        prompt = planningPrefix + featurePrompt;
+        prompt = workDirContext + planningPrefix + featurePrompt;
 
         // Emit planning mode info
         if (feature.planningMode && feature.planningMode !== 'skip') {
@@ -1079,8 +1094,24 @@ Complete the pipeline step instructions above. Review the previous work and appl
     // (SDK handles CLAUDE.md via settingSources), but keep other context files like CODE_QUALITY.md
     const contextFilesPrompt = filterClaudeMdFromContext(contextResult, autoLoadClaudeMd);
 
+    // Build working directory context to ensure agent uses correct paths
+    const workDirContext = `## Working Directory
+
+**IMPORTANT:** You are working in the following directory:
+\`\`\`
+${workDir}
+\`\`\`
+
+All file operations (Read, Write, Edit, Glob, Grep) must use paths within this directory.
+When exploring the codebase, use this directory as your base path.
+Do NOT use paths like \`/projects/automaker-loop/...\` directly - always use paths starting with \`${workDir}\`.
+
+`;
+
     // Build complete prompt with feature info, previous context, and follow-up instructions
-    let fullPrompt = `## Follow-up on Feature Implementation
+    let fullPrompt =
+      workDirContext +
+      `## Follow-up on Feature Implementation
 
 ${feature ? this.buildFeaturePrompt(feature) : `**Feature ID:** ${featureId}`}
 `;
