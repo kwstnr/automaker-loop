@@ -383,3 +383,72 @@ export async function ensureDataDir(dataDir: string): Promise<string> {
   await secureFs.mkdir(dataDir, { recursive: true });
   return dataDir;
 }
+
+// ============================================================================
+// Review Loop Paths
+// ============================================================================
+
+/**
+ * Get the review loop directory for a project
+ *
+ * Contains review loop session data and configuration.
+ *
+ * @param projectPath - Absolute path to project directory
+ * @returns Absolute path to {projectPath}/.automaker/review-loop
+ */
+export function getReviewLoopDir(projectPath: string): string {
+  return path.join(getAutomakerDir(projectPath), 'review-loop');
+}
+
+/**
+ * Get the review loop sessions directory for a project
+ *
+ * Contains individual session files for each feature's review loop.
+ *
+ * @param projectPath - Absolute path to project directory
+ * @returns Absolute path to {projectPath}/.automaker/review-loop/sessions
+ */
+export function getReviewLoopSessionsDir(projectPath: string): string {
+  return path.join(getReviewLoopDir(projectPath), 'sessions');
+}
+
+/**
+ * Get the session file path for a review loop session
+ *
+ * Stores the review loop session state and history for a feature.
+ *
+ * @param projectPath - Absolute path to project directory
+ * @param featureId - Feature identifier
+ * @returns Absolute path to {projectPath}/.automaker/review-loop/sessions/{featureId}.json
+ */
+export function getReviewLoopSessionPath(projectPath: string, featureId: string): string {
+  return path.join(getReviewLoopSessionsDir(projectPath), `${featureId}.json`);
+}
+
+/**
+ * Get the review loop configuration file path for a project
+ *
+ * Stores project-specific review loop configuration overrides.
+ *
+ * @param projectPath - Absolute path to project directory
+ * @returns Absolute path to {projectPath}/.automaker/review-loop/config.json
+ */
+export function getReviewLoopConfigPath(projectPath: string): string {
+  return path.join(getReviewLoopDir(projectPath), 'config.json');
+}
+
+/**
+ * Create the review loop directory structure for a project if it doesn't exist
+ *
+ * Creates {projectPath}/.automaker/review-loop with sessions subdirectory.
+ * Safe to call multiple times - uses recursive: true.
+ *
+ * @param projectPath - Absolute path to project directory
+ * @returns Promise resolving to the created review loop directory path
+ */
+export async function ensureReviewLoopDir(projectPath: string): Promise<string> {
+  const reviewLoopDir = getReviewLoopDir(projectPath);
+  await secureFs.mkdir(reviewLoopDir, { recursive: true });
+  await secureFs.mkdir(getReviewLoopSessionsDir(projectPath), { recursive: true });
+  return reviewLoopDir;
+}

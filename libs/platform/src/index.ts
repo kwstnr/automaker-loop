@@ -34,6 +34,12 @@ export {
   getIdeationDraftsDir,
   getIdeationAnalysisPath,
   ensureIdeationDir,
+  // Review Loop paths
+  getReviewLoopDir,
+  getReviewLoopSessionsDir,
+  getReviewLoopSessionPath,
+  getReviewLoopConfigPath,
+  ensureReviewLoopDir,
 } from './paths.js';
 
 // Subprocess management
