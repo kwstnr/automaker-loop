@@ -65,6 +65,7 @@ import { createPipelineRoutes } from './routes/pipeline/index.js';
 import { pipelineService } from './services/pipeline-service.js';
 import { createIdeationRoutes } from './routes/ideation/index.js';
 import { IdeationService } from './services/ideation-service.js';
+import { createPRMergeMonitor } from './services/pr-merge-monitor.js';
 
 // Load environment variables
 dotenv.config();
@@ -171,6 +172,11 @@ const claudeUsageService = new ClaudeUsageService();
 const codexUsageService = new CodexUsageService();
 const mcpTestService = new MCPTestService(settingsService);
 const ideationService = new IdeationService(events, settingsService, featureLoader);
+
+// Initialize PR Merge Monitor for tracking PR merge status in PR-based workflow
+// When PRs are merged, features automatically move to 'verified' status
+const prMergeMonitor = createPRMergeMonitor(events, featureLoader);
+logger.info('PR Merge Monitor initialized');
 
 // Initialize services
 (async () => {
@@ -592,6 +598,7 @@ startServer(PORT);
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down...');
   terminalService.cleanup();
+  prMergeMonitor.stopAll().catch((err) => logger.error('Error stopping PR merge monitor:', err));
   server.close(() => {
     logger.info('Server closed');
     process.exit(0);
@@ -601,6 +608,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down...');
   terminalService.cleanup();
+  prMergeMonitor.stopAll().catch((err) => logger.error('Error stopping PR merge monitor:', err));
   server.close(() => {
     logger.info('Server closed');
     process.exit(0);

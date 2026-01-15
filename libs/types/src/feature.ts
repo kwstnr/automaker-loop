@@ -67,6 +67,10 @@ export interface Feature {
   summary?: string;
   startedAt?: string;
   descriptionHistory?: DescriptionHistoryEntry[]; // History of description changes
+  // PR tracking for PR-based workflow
+  prUrl?: string; // Pull request URL when PR is created
+  prNumber?: number; // Pull request number
+  prState?: 'open' | 'merged' | 'closed'; // PR state from GitHub
   [key: string]: unknown; // Keep catch-all for extensibility
 }
 

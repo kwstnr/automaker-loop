@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Feature, useAppStore } from '@/store/app-store';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle, Lock, Hand, Sparkles } from 'lucide-react';
+import { AlertCircle, Lock, Hand, Sparkles, GitPullRequest } from 'lucide-react';
 import { getBlockingDependencies } from '@automaker/dependency-resolver';
 
 /** Uniform badge style for all card badges */
@@ -102,7 +102,10 @@ export function PriorityBadges({ feature }: PriorityBadgesProps) {
   const showManualVerification =
     feature.skipTests && !feature.error && feature.status === 'backlog';
 
-  const showBadges = feature.priority || showManualVerification || isBlocked || isJustFinished;
+  // Show PR status badge for features in 'waiting_approval' with an open PR
+  const hasPROpen = feature.status === 'waiting_approval' && feature.prUrl && !feature.error;
+
+  const showBadges = feature.priority || showManualVerification || isBlocked || isJustFinished || hasPROpen;
 
   if (!showBadges) {
     return null;
@@ -217,6 +220,31 @@ export function PriorityBadges({ feature }: PriorityBadgesProps) {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
               <p>Agent just finished working on this feature</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
+      {/* PR Open badge - shows when feature is waiting for PR review */}
+      {hasPROpen && (
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={cn(
+                  uniformBadgeClass,
+                  'bg-purple-500/20 border-purple-500/50 text-purple-500'
+                )}
+                data-testid={`pr-open-badge-${feature.id}`}
+              >
+                <GitPullRequest className="w-3.5 h-3.5" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs max-w-[250px]">
+              <p className="font-medium mb-1">PR Open - Awaiting Review</p>
+              <p className="text-muted-foreground">
+                Feature will auto-verify when PR is merged
+              </p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

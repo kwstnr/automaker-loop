@@ -59,6 +59,7 @@ import {
   isGitRepo,
 } from '../routes/worktree/common.js';
 import { updateWorktreePRInfo, type WorktreePRInfo } from '../lib/worktree-metadata.js';
+import { getPRMergeMonitor } from './pr-merge-monitor.js';
 
 const execAsync = promisify(exec);
 
@@ -689,10 +690,10 @@ Do NOT use paths like \`/projects/automaker-loop/...\` directly - always use pat
         );
       }
 
-      // Determine final status based on testing mode:
-      // - skipTests=false (automated testing): go directly to 'verified' (no manual verify needed)
-      // - skipTests=true (manual verification): go to 'waiting_approval' for manual review
-      const finalStatus = feature.skipTests ? 'waiting_approval' : 'verified';
+      // PR-based workflow: always go to 'waiting_approval' after completion
+      // 'waiting_approval' = PR is open, awaiting human review
+      // 'verified' = PR merged, feature is complete (set by PRMergeMonitor)
+      const finalStatus = 'waiting_approval';
       await this.updateFeatureStatus(projectPath, featureId, finalStatus);
 
       // Record success to reset consecutive failure tracking
@@ -733,30 +734,31 @@ Do NOT use paths like \`/projects/automaker-loop/...\` directly - always use pat
         passes: true,
         message: `Feature completed in ${Math.round(
           (Date.now() - tempRunningFeature.startTime) / 1000
-        )}s${finalStatus === 'verified' ? ' - auto-verified' : ''}`,
+        )}s - awaiting PR review`,
         projectPath,
         model: tempRunningFeature.model,
         provider: tempRunningFeature.provider,
       });
 
-      // Auto-commit if enabled and feature is verified
-      if (finalStatus === 'verified') {
-        try {
-          const settings = await this.settingsService?.getGlobalSettings();
-          if (settings?.autoPR?.autoCommit) {
-            logger.info(`Auto-commit enabled, committing feature ${featureId}`);
-            const worktreePath = tempRunningFeature.worktreePath ?? undefined;
-            const commitHash = await this.commitFeature(projectPath, featureId, worktreePath);
-            if (commitHash) {
-              logger.info(`Auto-committed feature ${featureId}: ${commitHash.substring(0, 8)}`);
-            } else {
-              logger.info(`Auto-commit: no changes to commit for feature ${featureId}`);
-            }
+      // Auto-commit and create PR when feature enters 'waiting_approval' status
+      // This is part of the PR-based workflow where PRs are opened for human review
+      try {
+        const settings = await this.settingsService?.getGlobalSettings();
+        if (settings?.autoPR?.autoCommit) {
+          logger.info(`Auto-commit enabled, committing feature ${featureId} and creating PR`);
+          const worktreePath = tempRunningFeature.worktreePath ?? undefined;
+          const commitHash = await this.commitFeature(projectPath, featureId, worktreePath);
+          if (commitHash) {
+            logger.info(`Auto-committed feature ${featureId}: ${commitHash.substring(0, 8)}`);
+            // Note: commitFeature() automatically triggers autoPushAndCreatePR() in the background
+            // The PRMergeMonitor will detect when PR is merged and move feature to 'verified'
+          } else {
+            logger.info(`Auto-commit: no changes to commit for feature ${featureId}`);
           }
-        } catch (autoCommitError) {
-          logger.warn(`Auto-commit failed for feature ${featureId}:`, autoCommitError);
-          // Don't fail the feature - just log the error
         }
+      } catch (autoCommitError) {
+        logger.warn(`Auto-commit failed for feature ${featureId}:`, autoCommitError);
+        // Don't fail the feature - just log the error
       }
     } catch (error) {
       const errorInfo = classifyError(error);
@@ -1702,6 +1704,38 @@ Address the follow-up instructions above. Review the previous work and make the 
       logger.info(
         `Auto PR ${prAlreadyExisted ? 'found' : 'created'} for feature ${featureId}: ${prUrl}`
       );
+
+      // Start monitoring PR merge status
+      // When PR is merged, the feature will automatically move to 'verified' status
+      if (prNumber && prUrl) {
+        const prMergeMonitor = getPRMergeMonitor();
+        if (prMergeMonitor) {
+          logger.info(`Starting PR merge monitor for feature ${featureId}, PR #${prNumber}`);
+          prMergeMonitor.startMonitoring({
+            featureId,
+            projectPath,
+            prNumber,
+            prUrl,
+            branch: branchName,
+            worktreePath: workDir,
+          }).catch((error) => {
+            logger.warn(`Failed to start PR merge monitor for feature ${featureId}:`, error);
+          });
+        } else {
+          logger.debug(`PR merge monitor not initialized, skipping merge monitoring for feature ${featureId}`);
+        }
+
+        // Also store PR info in the feature metadata for tracking
+        try {
+          const featureLoader = new FeatureLoader();
+          await featureLoader.update(projectPath, featureId, {
+            prUrl,
+          });
+          logger.info(`Stored PR URL in feature metadata for feature ${featureId}`);
+        } catch (metadataError) {
+          logger.warn(`Failed to store PR URL in feature metadata for ${featureId}:`, metadataError);
+        }
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during auto PR';
       logger.error(`Auto PR failed for ${featureId}:`, error);
