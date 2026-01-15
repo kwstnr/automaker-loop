@@ -26,7 +26,7 @@ import {
 } from './settings-view/providers';
 import { MCPServersSection } from './settings-view/mcp-servers';
 import { PromptCustomizationSection } from './settings-view/prompts';
-import { AutoPRSectionConnected } from './settings-view/auto-pr';
+import { AutoPRSectionConnected, AutoPullSectionConnected } from './settings-view/auto-pr';
 import type { Project as SettingsProject, Theme } from './settings-view/shared/types';
 import type { Project as ElectronProject } from '@/lib/electron';
 
@@ -173,6 +173,8 @@ export function SettingsView() {
         );
       case 'auto-pr':
         return <AutoPRSectionConnected />;
+      case 'auto-pull':
+        return <AutoPullSectionConnected />;
       case 'account':
         return <AccountSection />;
       case 'security':

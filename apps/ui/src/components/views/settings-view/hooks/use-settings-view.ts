@@ -17,6 +17,7 @@ export type SettingsViewId =
   | 'audio'
   | 'defaults'
   | 'auto-pr'
+  | 'auto-pull'
   | 'account'
   | 'security'
   | 'danger';

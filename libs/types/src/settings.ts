@@ -809,7 +809,7 @@ export const PROJECT_SETTINGS_VERSION = 1;
 export const DEFAULT_AUTO_PULL_SETTINGS: AutoPullSettings = {
   enabled: true,
   targetBranch: 'main',
-  autoCleanupWorktrees: false,
+  autoCleanupWorktrees: true,
 };
 
 /** Default Auto PR settings - disabled by default */

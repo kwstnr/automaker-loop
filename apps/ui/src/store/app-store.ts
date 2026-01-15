@@ -24,6 +24,7 @@ import type {
   PipelineStep,
   PromptCustomization,
   AutoPRSettings,
+  AutoPullSettings,
 } from '@automaker/types';
 import {
   getAllCursorModelIds,
@@ -32,6 +33,7 @@ import {
   DEFAULT_PHASE_MODELS,
   DEFAULT_OPENCODE_MODEL,
   DEFAULT_AUTO_PR_SETTINGS,
+  DEFAULT_AUTO_PULL_SETTINGS,
 } from '@automaker/types';
 
 const logger = createLogger('AppStore');
@@ -332,10 +334,8 @@ export interface FeatureImage {
 // Available models for feature execution
 export type ClaudeModel = 'opus' | 'sonnet' | 'haiku';
 
-export interface Feature extends Omit<
-  BaseFeature,
-  'steps' | 'imagePaths' | 'textFilePaths' | 'status'
-> {
+export interface Feature
+  extends Omit<BaseFeature, 'steps' | 'imagePaths' | 'textFilePaths' | 'status'> {
   id: string;
   title?: string;
   titleGenerating?: boolean;
@@ -600,6 +600,9 @@ export interface AppState {
 
   // Auto PR Settings
   autoPR: AutoPRSettings; // Configuration for automatic Pull Request creation
+
+  // Auto Pull Settings
+  autoPull: AutoPullSettings; // Configuration for automatic git pull after PR merge
 
   // Project Analysis
   projectAnalysis: ProjectAnalysis | null;
@@ -969,6 +972,9 @@ export interface AppActions {
   // Auto PR Settings actions
   setAutoPR: (settings: Partial<AutoPRSettings>) => Promise<void>;
 
+  // Auto Pull Settings actions
+  setAutoPull: (settings: Partial<AutoPullSettings>) => Promise<void>;
+
   // AI Profile actions
   addAIProfile: (profile: Omit<AIProfile, 'id'>) => void;
   updateAIProfile: (id: string, updates: Partial<AIProfile>) => void;
@@ -1210,6 +1216,7 @@ const initialState: AppState = {
   subagentsSources: ['user', 'project'] as Array<'user' | 'project'>, // Load from both sources by default
   promptCustomization: {}, // Empty by default - all prompts use built-in defaults
   autoPR: DEFAULT_AUTO_PR_SETTINGS, // Auto PR disabled by default
+  autoPull: DEFAULT_AUTO_PULL_SETTINGS, // Auto Pull enabled by default
   aiProfiles: DEFAULT_AI_PROFILES,
   projectAnalysis: null,
   isAnalyzing: false,
@@ -1980,6 +1987,15 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
   setAutoPR: async (settings) => {
     const current = get().autoPR;
     set({ autoPR: { ...current, ...settings } });
+    // Sync to server settings file
+    const { syncSettingsToServer } = await import('@/hooks/use-settings-migration');
+    await syncSettingsToServer();
+  },
+
+  // Auto Pull Settings actions
+  setAutoPull: async (settings) => {
+    const current = get().autoPull;
+    set({ autoPull: { ...current, ...settings } });
     // Sync to server settings file
     const { syncSettingsToServer } = await import('@/hooks/use-settings-migration');
     await syncSettingsToServer();
