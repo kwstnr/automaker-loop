@@ -15,6 +15,7 @@ import {
   User,
   Shield,
   Cpu,
+  GitPullRequest,
 } from 'lucide-react';
 import { AnthropicIcon, CursorIcon, OpenAIIcon } from '@/components/ui/provider-icon';
 import type { SettingsViewId } from '../hooks/use-settings-view';
@@ -38,6 +39,7 @@ export const GLOBAL_NAV_GROUPS: NavigationGroup[] = [
     items: [
       { id: 'model-defaults', label: 'Model Defaults', icon: Workflow },
       { id: 'defaults', label: 'Feature Defaults', icon: FlaskConical },
+      { id: 'auto-pr', label: 'Automatic PRs', icon: GitPullRequest },
       { id: 'prompts', label: 'Prompt Customization', icon: MessageSquareText },
       { id: 'api-keys', label: 'API Keys', icon: Key },
       {

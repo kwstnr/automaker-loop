@@ -26,6 +26,7 @@ import {
 } from './settings-view/providers';
 import { MCPServersSection } from './settings-view/mcp-servers';
 import { PromptCustomizationSection } from './settings-view/prompts';
+import { AutoPRSectionConnected } from './settings-view/auto-pr';
 import type { Project as SettingsProject, Theme } from './settings-view/shared/types';
 import type { Project as ElectronProject } from '@/lib/electron';
 
@@ -170,6 +171,8 @@ export function SettingsView() {
             onDefaultAIProfileIdChange={setDefaultAIProfileId}
           />
         );
+      case 'auto-pr':
+        return <AutoPRSectionConnected />;
       case 'account':
         return <AccountSection />;
       case 'security':

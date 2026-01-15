@@ -52,6 +52,7 @@ const SETTINGS_FIELDS_TO_SYNC = [
   'aiProfiles',
   'mcpServers',
   'promptCustomization',
+  'autoPR',
   'projects',
   'trashedProjects',
   'currentProjectId', // ID of currently open project
@@ -408,6 +409,7 @@ export async function refreshSettingsFromServer(): Promise<boolean> {
       aiProfiles: serverSettings.aiProfiles,
       mcpServers: serverSettings.mcpServers,
       promptCustomization: serverSettings.promptCustomization ?? {},
+      autoPR: serverSettings.autoPR ?? currentAppState.autoPR,
       projects: serverSettings.projects,
       trashedProjects: serverSettings.trashedProjects,
       projectHistory: serverSettings.projectHistory,

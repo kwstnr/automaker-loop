@@ -23,6 +23,7 @@ import type {
   PipelineConfig,
   PipelineStep,
   PromptCustomization,
+  AutoPRSettings,
 } from '@automaker/types';
 import {
   getAllCursorModelIds,
@@ -30,6 +31,7 @@ import {
   getAllOpencodeModelIds,
   DEFAULT_PHASE_MODELS,
   DEFAULT_OPENCODE_MODEL,
+  DEFAULT_AUTO_PR_SETTINGS,
 } from '@automaker/types';
 
 const logger = createLogger('AppStore');
@@ -596,6 +598,9 @@ export interface AppState {
   // Prompt Customization
   promptCustomization: PromptCustomization; // Custom prompts for Auto Mode, Agent, Backlog Plan, Enhancement
 
+  // Auto PR Settings
+  autoPR: AutoPRSettings; // Configuration for automatic Pull Request creation
+
   // Project Analysis
   projectAnalysis: ProjectAnalysis | null;
   isAnalyzing: boolean;
@@ -961,6 +966,9 @@ export interface AppActions {
   // Prompt Customization actions
   setPromptCustomization: (customization: PromptCustomization) => Promise<void>;
 
+  // Auto PR Settings actions
+  setAutoPR: (settings: Partial<AutoPRSettings>) => Promise<void>;
+
   // AI Profile actions
   addAIProfile: (profile: Omit<AIProfile, 'id'>) => void;
   updateAIProfile: (id: string, updates: Partial<AIProfile>) => void;
@@ -1201,6 +1209,7 @@ const initialState: AppState = {
   enableSubagents: true, // Subagents enabled by default
   subagentsSources: ['user', 'project'] as Array<'user' | 'project'>, // Load from both sources by default
   promptCustomization: {}, // Empty by default - all prompts use built-in defaults
+  autoPR: DEFAULT_AUTO_PR_SETTINGS, // Auto PR disabled by default
   aiProfiles: DEFAULT_AI_PROFILES,
   projectAnalysis: null,
   isAnalyzing: false,
@@ -1962,6 +1971,15 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
   // Prompt Customization actions
   setPromptCustomization: async (customization) => {
     set({ promptCustomization: customization });
+    // Sync to server settings file
+    const { syncSettingsToServer } = await import('@/hooks/use-settings-migration');
+    await syncSettingsToServer();
+  },
+
+  // Auto PR Settings actions
+  setAutoPR: async (settings) => {
+    const current = get().autoPR;
+    set({ autoPR: { ...current, ...settings } });
     // Sync to server settings file
     const { syncSettingsToServer } = await import('@/hooks/use-settings-migration');
     await syncSettingsToServer();
