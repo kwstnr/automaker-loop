@@ -15,6 +15,8 @@ import { promisify } from 'util';
 import type { EventEmitter } from '../lib/events.js';
 import { execEnv, isGhCliAvailable } from '../routes/worktree/common.js';
 import { FeatureLoader } from './feature-loader.js';
+import type { SettingsService } from './settings-service.js';
+import { DEFAULT_AUTO_PULL_SETTINGS } from '../types/settings.js';
 
 const logger = createLogger('PRMergeMonitor');
 const execAsync = promisify(exec);
@@ -64,12 +66,19 @@ export interface PRMergeMonitorEvent {
     | 'pr_merge_monitor_stopped'
     | 'pr_merged'
     | 'pr_closed'
-    | 'pr_merge_monitor_error';
+    | 'pr_merge_monitor_error'
+    | 'pr_merge_pull_started'
+    | 'pr_merge_pull_completed'
+    | 'pr_merge_pull_failed';
   featureId: string;
   prNumber: number;
   prUrl?: string;
   error?: string;
   reason?: string;
+  /** Branch that was pulled (for pull events) */
+  branch?: string;
+  /** Whether worktree was cleaned up (for pull_completed events) */
+  worktreeCleanedUp?: boolean;
 }
 
 /**
@@ -113,11 +122,13 @@ export class PRMergeMonitor {
   private events: EventEmitter;
   private config: PRMergeMonitorConfig;
   private featureLoader: FeatureLoader;
+  private settingsService?: SettingsService;
 
   constructor(
     events: EventEmitter,
     featureLoader: FeatureLoader,
-    config?: Partial<PRMergeMonitorConfig>
+    config?: Partial<PRMergeMonitorConfig>,
+    settingsService?: SettingsService
   ) {
     this.events = events;
     this.featureLoader = featureLoader;
@@ -125,6 +136,7 @@ export class PRMergeMonitor {
       ...DEFAULT_PR_MERGE_MONITOR_CONFIG,
       ...config,
     };
+    this.settingsService = settingsService;
   }
 
   /**
@@ -370,7 +382,7 @@ export class PRMergeMonitor {
    * Handle when a PR is merged
    */
   private async handlePRMerged(state: MonitoredPRMergeState): Promise<void> {
-    const { featureId, prNumber, prUrl, projectPath } = state;
+    const { featureId, prNumber, prUrl, projectPath, worktreePath } = state;
 
     logger.info(`PR #${prNumber} merged! Moving feature ${featureId} to 'verified' status`);
 
@@ -401,6 +413,9 @@ export class PRMergeMonitor {
         prUrl,
       });
 
+      // Auto-pull main branch after PR merge
+      await this.handleAutoPullAfterMerge(state);
+
       // Stop monitoring this PR
       await this.stopMonitoring(featureId, 'merged');
     } catch (error) {
@@ -411,6 +426,120 @@ export class PRMergeMonitor {
         prNumber,
         error: error instanceof Error ? error.message : String(error),
       });
+    }
+  }
+
+  /**
+   * Pull the main branch after a PR merge and optionally cleanup worktree
+   */
+  private async handleAutoPullAfterMerge(state: MonitoredPRMergeState): Promise<void> {
+    const { featureId, prNumber, prUrl, projectPath, worktreePath } = state;
+
+    // Get auto-pull settings
+    const settings = this.settingsService
+      ? await this.settingsService.getGlobalSettings()
+      : null;
+    const autoPullSettings = settings?.autoPull ?? DEFAULT_AUTO_PULL_SETTINGS;
+
+    // Check if auto-pull is enabled
+    if (!autoPullSettings.enabled) {
+      logger.info(`Auto-pull disabled, skipping pull after PR #${prNumber} merge`);
+      return;
+    }
+
+    const targetBranch = autoPullSettings.targetBranch || 'main';
+
+    // Emit pull started event
+    this.emitEvent({
+      type: 'pr_merge_pull_started',
+      featureId,
+      prNumber,
+      prUrl,
+      branch: targetBranch,
+    });
+
+    logger.info(`Pulling ${targetBranch} branch after PR #${prNumber} merged`);
+
+    try {
+      // First, fetch the latest changes
+      await execAsync(`git fetch origin ${targetBranch}`, { cwd: projectPath, env: execEnv });
+
+      // Check if we're on the target branch or need to handle differently
+      const { stdout: currentBranch } = await execAsync('git rev-parse --abbrev-ref HEAD', {
+        cwd: projectPath,
+        env: execEnv,
+      });
+      const trimmedCurrentBranch = currentBranch.trim();
+
+      if (trimmedCurrentBranch === targetBranch) {
+        // We're on the target branch, do a pull
+        await execAsync(`git pull origin ${targetBranch}`, { cwd: projectPath, env: execEnv });
+        logger.info(`Successfully pulled ${targetBranch} branch after PR #${prNumber} merge`);
+      } else {
+        // We're on a different branch (likely the feature branch), update the target branch reference
+        // This updates the local reference without switching branches
+        await execAsync(`git fetch origin ${targetBranch}:${targetBranch}`, {
+          cwd: projectPath,
+          env: execEnv,
+        });
+        logger.info(
+          `Updated local ${targetBranch} branch reference after PR #${prNumber} merge (currently on ${trimmedCurrentBranch})`
+        );
+      }
+
+      // Handle optional worktree cleanup
+      let worktreeCleanedUp = false;
+      if (autoPullSettings.autoCleanupWorktrees && worktreePath && worktreePath !== projectPath) {
+        worktreeCleanedUp = await this.cleanupWorktree(worktreePath, projectPath);
+      }
+
+      // Emit pull completed event
+      this.emitEvent({
+        type: 'pr_merge_pull_completed',
+        featureId,
+        prNumber,
+        prUrl,
+        branch: targetBranch,
+        worktreeCleanedUp,
+      });
+    } catch (pullError) {
+      const errorMessage = pullError instanceof Error ? pullError.message : String(pullError);
+      logger.error(`Failed to pull ${targetBranch} after PR #${prNumber} merge:`, pullError);
+
+      // Emit pull failed event
+      this.emitEvent({
+        type: 'pr_merge_pull_failed',
+        featureId,
+        prNumber,
+        prUrl,
+        branch: targetBranch,
+        error: errorMessage,
+      });
+
+      // Don't throw - we don't want to fail the whole operation just because pull failed
+      // The feature status has already been updated to 'verified'
+    }
+  }
+
+  /**
+   * Cleanup a worktree after successful merge
+   */
+  private async cleanupWorktree(worktreePath: string, projectPath: string): Promise<boolean> {
+    try {
+      logger.info(`Cleaning up worktree at ${worktreePath}`);
+
+      // Remove the worktree using git worktree remove
+      await execAsync(`git worktree remove "${worktreePath}" --force`, {
+        cwd: projectPath,
+        env: execEnv,
+      });
+
+      logger.info(`Successfully cleaned up worktree at ${worktreePath}`);
+      return true;
+    } catch (cleanupError) {
+      logger.error(`Failed to cleanup worktree at ${worktreePath}:`, cleanupError);
+      // Don't throw - worktree cleanup failure shouldn't fail the overall operation
+      return false;
     }
   }
 
@@ -456,9 +585,10 @@ let prMergeMonitorInstance: PRMergeMonitor | null = null;
 export function createPRMergeMonitor(
   events: EventEmitter,
   featureLoader: FeatureLoader,
-  config?: Partial<PRMergeMonitorConfig>
+  config?: Partial<PRMergeMonitorConfig>,
+  settingsService?: SettingsService
 ): PRMergeMonitor {
-  prMergeMonitorInstance = new PRMergeMonitor(events, featureLoader, config);
+  prMergeMonitorInstance = new PRMergeMonitor(events, featureLoader, config, settingsService);
   return prMergeMonitorInstance;
 }
 
