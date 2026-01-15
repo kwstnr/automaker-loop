@@ -117,6 +117,7 @@ export type {
   WorktreeInfo,
   ProjectSettings,
   AutoPRSettings,
+  AutoPullSettings,
 } from './settings.js';
 export {
   DEFAULT_KEYBOARD_SHORTCUTS,
@@ -125,6 +126,7 @@ export {
   DEFAULT_CREDENTIALS,
   DEFAULT_PROJECT_SETTINGS,
   DEFAULT_AUTO_PR_SETTINGS,
+  DEFAULT_AUTO_PULL_SETTINGS,
   SETTINGS_VERSION,
   CREDENTIALS_VERSION,
   PROJECT_SETTINGS_VERSION,

@@ -326,6 +326,21 @@ export function getProfileModelString(profile: AIProfile): string {
 }
 
 /**
+ * AutoPullSettings - Configuration for automatic git pull after PR merge
+ *
+ * Controls automatic git pull behavior when PRMergeMonitor detects a PR has been merged.
+ * When enabled, the main branch will be automatically pulled to keep the local repo up to date.
+ */
+export interface AutoPullSettings {
+  /** Whether automatic pull after merge is enabled (default: true) */
+  enabled: boolean;
+  /** Target branch to pull (default: 'main') */
+  targetBranch: string;
+  /** Automatically cleanup/remove the worktree after successful pull (default: false) */
+  autoCleanupWorktrees: boolean;
+}
+
+/**
  * AutoPRSettings - Configuration for automatic Pull Request creation
  *
  * Controls automatic PR creation behavior when features are completed.
@@ -635,6 +650,13 @@ export interface GlobalSettings {
    */
   autoPR?: AutoPRSettings;
 
+  // Auto Pull Settings
+  /**
+   * Configuration for automatic git pull after PR merge
+   * Controls whether and how the main branch is pulled when PRMergeMonitor detects a PR has been merged
+   */
+  autoPull?: AutoPullSettings;
+
   // Review Loop Configuration
   /**
    * Configuration for the AI review loop system
@@ -783,6 +805,13 @@ export const CREDENTIALS_VERSION = 1;
 /** Current version of the project settings schema */
 export const PROJECT_SETTINGS_VERSION = 1;
 
+/** Default Auto Pull settings - enabled by default */
+export const DEFAULT_AUTO_PULL_SETTINGS: AutoPullSettings = {
+  enabled: true,
+  targetBranch: 'main',
+  autoCleanupWorktrees: false,
+};
+
 /** Default Auto PR settings - disabled by default */
 export const DEFAULT_AUTO_PR_SETTINGS: AutoPRSettings = {
   enabled: false,
@@ -869,6 +898,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   enableSubagents: true,
   subagentsSources: ['user', 'project'],
   autoPR: DEFAULT_AUTO_PR_SETTINGS,
+  autoPull: DEFAULT_AUTO_PULL_SETTINGS,
   reviewLoop: DEFAULT_REVIEW_LOOP_CONFIG,
 };
 

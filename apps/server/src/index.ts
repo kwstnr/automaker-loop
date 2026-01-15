@@ -175,7 +175,8 @@ const ideationService = new IdeationService(events, settingsService, featureLoad
 
 // Initialize PR Merge Monitor for tracking PR merge status in PR-based workflow
 // When PRs are merged, features automatically move to 'verified' status
-const prMergeMonitor = createPRMergeMonitor(events, featureLoader);
+// and optionally pulls the main branch and cleans up worktrees
+const prMergeMonitor = createPRMergeMonitor(events, featureLoader, undefined, settingsService);
 logger.info('PR Merge Monitor initialized');
 
 // Initialize services
