@@ -277,3 +277,19 @@ export {
   DEFAULT_REVIEW_LOOP_CONFIG,
   DEFAULT_PR_FEEDBACK_MONITOR_CONFIG,
 } from './review-loop.js';
+
+// Code context types
+export type {
+  ImportType,
+  DependencyType,
+  ParsedImport,
+  IdentifiedDependency,
+  FileImportAnalysis,
+  RelatedFile,
+  RelatedFileRelationship,
+  CodeContext,
+  CodeContextSummary,
+  CodeContextOptions,
+  FormattedCodeContext,
+} from './code-context.js';
+export { DEFAULT_CODE_CONTEXT_OPTIONS } from './code-context.js';

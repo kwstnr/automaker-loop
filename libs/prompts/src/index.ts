@@ -39,6 +39,17 @@ export {
 } from './feedback-fixer.js';
 export type { FeedbackFixerExample, FeedbackFixerConfig } from './feedback-fixer.js';
 
+// Self-review prompts (Code Context Integration)
+export {
+  SELF_REVIEW_SYSTEM_PROMPT,
+  buildSelfReviewPrompt,
+  buildSelfReviewPromptWithContext,
+  formatCodeContextForReview,
+  parseSelfReviewResponse,
+  DEFAULT_SELF_REVIEW_CONFIG,
+} from './self-review.js';
+export type { SelfReviewConfig } from './self-review.js';
+
 // Re-export types from @automaker/types
 export type { EnhancementMode, EnhancementExample } from '@automaker/types';
 
